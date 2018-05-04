@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- author: malek, kevin, moritz, Sascha El-Sharkawy -->
+<!-- author: Sascha El-Sharkawy, Adam -->
 <project name="BusybootPreparation" default="jenkins" basedir=".">
 	<description>Utilities for preparing Busybox and Coreboot source trees for KernelHaven</description>
 
