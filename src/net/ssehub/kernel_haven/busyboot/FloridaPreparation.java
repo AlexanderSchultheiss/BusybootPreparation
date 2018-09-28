@@ -34,7 +34,7 @@ public class FloridaPreparation implements IPreparation {
     
     public static final @NonNull Setting<@NonNull File> DESTINATION_DIR
         = new Setting<>("prepare_pure_variants.destination", Type.DIRECTORY, true, null, "The destination directory "
-            + "where a temporary copy of the source tree with the pure::variants replacements should be placed. "
+            + "where a temporary copy of the source tree with the FLOrIDA replacements should be placed. "
             + "All contents of this will be overwritten.");
     
     private static final @NonNull Logger LOGGER = Logger.get();
