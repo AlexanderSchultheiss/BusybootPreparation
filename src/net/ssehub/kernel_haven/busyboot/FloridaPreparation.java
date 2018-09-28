@@ -33,7 +33,7 @@ import net.ssehub.kernel_haven.util.null_checks.Nullable;
 public class FloridaPreparation implements IPreparation {
     
     public static final @NonNull Setting<@NonNull File> DESTINATION_DIR
-        = new Setting<>("prepare_pure_variants.destination", Type.DIRECTORY, true, null, "The destination directory "
+        = new Setting<>("preparation.florida.destination", Type.DIRECTORY, true, null, "The destination directory "
             + "where a temporary copy of the source tree with the FLOrIDA replacements should be placed. "
             + "All contents of this will be overwritten.");
     
