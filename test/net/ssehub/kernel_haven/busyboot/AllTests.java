@@ -10,7 +10,7 @@ import org.junit.runners.Suite.SuiteClasses;
  * @author Adam
  */
 @RunWith(Suite.class)
-@SuiteClasses({})
+@SuiteClasses({FloridaPreparationTest.class})
 public class AllTests {
 
 }
