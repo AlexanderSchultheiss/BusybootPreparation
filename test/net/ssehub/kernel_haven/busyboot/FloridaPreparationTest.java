@@ -337,8 +337,8 @@ public class FloridaPreparationTest {
      * //&end[feature]
      * </pre></code>
      * 
-     * @throws IOException
-     * @throws SetUpException
+     * @throws IOException unwanted.
+     * @throws SetUpException unwanted.
      */
     @Test
     public void testLineWithEnd() throws IOException, SetUpException {
@@ -377,6 +377,47 @@ public class FloridaPreparationTest {
                 + " in line 3 has a closing FLOrIDA statement without a prior opening one"));
         
         assertThat(lines.length, is(1));
+    }
+    
+    /**
+     * Tests that the case of FLOrIDA blocks doesn't matter.
+     * 
+     * @throws SetUpException unwanted.
+     * @throws IOException unwanted.
+     */
+    @Test
+    public void testsIgnoreCase() throws IOException, SetUpException {
+        FloridaPreparation prep = new FloridaPreparation();
+        
+        File target = new File(TESTDATA, "ignoreCase");
+        prep.prepare(target, OUT_FOLDER);
+        
+        assertThat(OUT_FOLDER.listFiles(), is(new File[] {new File(OUT_FOLDER, "test.c")}));
+        
+        try (LineNumberReader in = new LineNumberReader(new FileReader(new File(OUT_FOLDER, "test.c")))) {
+            
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("#if defined(Feature_A)"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else if (in.getLineNumber() == 3) {
+                    assertThat(line, is("#endif // Feature_A"));
+                } else if (in.getLineNumber() == 4) {
+                    assertThat(line, is(""));
+                } else if (in.getLineNumber() == 5) {
+                    assertThat(line, is("#if defined(Feature_B)"));
+                } else if (in.getLineNumber() == 6) {
+                    assertThat(line, is("    someOtherCode();"));
+                } else if (in.getLineNumber() == 7) {
+                    assertThat(line, is("#endif // Feature_B"));
+                }
+                
+            }
+            
+        }
     }
     
 }

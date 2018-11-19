@@ -40,13 +40,13 @@ public class FloridaPreparation implements IPreparation {
     private static final @NonNull Logger LOGGER = Logger.get();
     
     private static final @NonNull Pattern BEGIN_PATTERN
-            = Pattern.compile(Pattern.quote("begin[") + "(\\w+)" + Pattern.quote("]"));
+            = Pattern.compile(Pattern.quote("begin[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
     
     private static final @NonNull Pattern END_PATTERN
-        = Pattern.compile(Pattern.quote("end[") + "(\\w+)" + Pattern.quote("]"));
+        = Pattern.compile(Pattern.quote("end[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
     
     private static final @NonNull Pattern LINE_PATTERN
-        = Pattern.compile(Pattern.quote("Line[") + "(\\w+)" + Pattern.quote("]"));
+        = Pattern.compile(Pattern.quote("Line[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
     
     private File currentFile;
     
