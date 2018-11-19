@@ -299,11 +299,17 @@ public class FloridaPreparation implements IPreparation {
         
         if (endMatcher.matches()) {
             String feature = endMatcher.group(1);
-            String expectedFeature = featureStack.pop();
-            if (!feature.equals(expectedFeature)) {
-                LOGGER.logWarning("begin[] and end[] block features don't match in " + currentFile
-                        + " in line " + currentLineNumber,
-                        "Got //&end[" + feature + "], expected //&end[" + expectedFeature + "]");
+            if (!featureStack.isEmpty()) {
+                String expectedFeature = featureStack.pop();
+                if (!feature.equals(expectedFeature)) {
+                    LOGGER.logWarning("begin[] and end[] block features don't match in " + currentFile
+                            + " in line " + currentLineNumber,
+                            "Got //&end[" + feature + "], expected //&end[" + expectedFeature + "]");
+                }
+                
+            } else {
+                LOGGER.logWarning(currentFile + " in line " + currentLineNumber
+                        + " has a closing FLOrIDA statement without a prior opening one");
             }
             result = "#endif // " + feature;
             

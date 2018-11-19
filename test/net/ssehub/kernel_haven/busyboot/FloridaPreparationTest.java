@@ -328,4 +328,55 @@ public class FloridaPreparationTest {
         assertThat(lines.length, is(2));
     }
     
+    /**
+     * Tests that the following invalid combination is handled gracefully:
+     * 
+     * <code><pre>
+     * //&Line[feature]
+     *    someCode();
+     * //&end[feature]
+     * </pre></code>
+     * 
+     * @throws IOException
+     * @throws SetUpException
+     */
+    @Test
+    public void testLineWithEnd() throws IOException, SetUpException {
+        FloridaPreparation prep = new FloridaPreparation();
+        
+        ByteArrayOutputStream log = new ByteArrayOutputStream();
+        Logger.get().addTarget(log);
+        
+        File target = new File(TESTDATA, "lineWithEnd");
+        File targetFile = new File(target, "test.c");
+        prep.prepare(target, OUT_FOLDER);
+        
+        Logger.get().removeTarget(Logger.get().getTargets().size() - 1);
+        
+        assertThat(OUT_FOLDER.listFiles(), is(new File[] {new File(OUT_FOLDER, "test.c")}));
+        try (LineNumberReader in = new LineNumberReader(new FileReader(new File(OUT_FOLDER, "test.c")))) {
+            
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("#if defined(Feature_A)"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else if (in.getLineNumber() == 3) {
+                    assertThat(line, is("#endif // Feature_A"));
+                } else if (in.getLineNumber() == 4) {
+                    assertThat(line, is("#endif // Feature_A"));
+                }
+            }
+        }
+
+        String[] lines = log.toString().split("\n");
+        
+        assertThat(lines[0], endsWith(targetFile
+                + " in line 3 has a closing FLOrIDA statement without a prior opening one"));
+        
+        assertThat(lines.length, is(1));
+    }
+    
 }
