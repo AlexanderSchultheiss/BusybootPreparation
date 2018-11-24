@@ -378,7 +378,7 @@ public class PrepareBusybox implements IPreparation {
 			return temp;
 		if (temp.contains("ENABLE_")) {
 			temp = temp.replace("ENABLE_", "\n#if defined CONFIG_");
-			StringBuffer strB = new StringBuffer(temp);
+			StringBuilder strB = new StringBuilder(temp);
 			if (temp.contains("if (\n#if defined CONFIG_")) {
 				try {
 					strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
