@@ -11,8 +11,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
-import org.apache.commons.io.FileUtils;
-
 import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.SetUpException;
 import net.ssehub.kernel_haven.config.Configuration;
@@ -91,7 +89,8 @@ public class PrepareCoreboot implements IPreparation {
 		File srcDir = new File(pathToSource);
 		File cpDir = new File(pathToSource + "UnchangedCopy");
 		try {
-			FileUtils.copyDirectory(srcDir, cpDir);
+		    cpDir.mkdir();
+		    Util.copyFolder(srcDir, cpDir);
 		} catch (IOException exc) {
 			Logger.get().logWarning(exc.getMessage());
 			exc.printStackTrace();
@@ -146,8 +145,10 @@ public class PrepareCoreboot implements IPreparation {
 			System.out.println(source0 + " = Source0");
 			System.out.println(source1 + " = Source0");
 			System.out.println(destination + " = dest");
-			FileUtils.copyDirectory(source0.toFile(), destination.toFile());
-			FileUtils.copyDirectory(source1.toFile(), destination.toFile());
+			
+			destination.toFile().mkdir();
+			Util.copyFolder(source0.toFile(), destination.toFile());
+			Util.copyFolder(source1.toFile(), destination.toFile());
 		} catch (IOException exc) {
 			Logger.get().logWarning(exc.getMessage());
 			exc.printStackTrace();

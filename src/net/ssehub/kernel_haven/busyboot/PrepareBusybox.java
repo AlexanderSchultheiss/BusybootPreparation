@@ -18,8 +18,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.io.FileUtils;
-
 import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.SetUpException;
 import net.ssehub.kernel_haven.config.Configuration;
@@ -150,7 +148,8 @@ public class PrepareBusybox implements IPreparation {
 		File srcDir = new File(pathToSource);
 		File cpDir = new File(pathToSource + "UnchangedCopy");
 		try {
-			FileUtils.copyDirectory(srcDir, cpDir);
+		    cpDir.mkdir();
+		    Util.copyFolder(srcDir, cpDir);
 		} catch (IOException exc) {
 			Logger.get().logWarning(exc.getMessage());
 			exc.printStackTrace();
