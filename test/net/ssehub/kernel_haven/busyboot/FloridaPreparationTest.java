@@ -181,6 +181,38 @@ public class FloridaPreparationTest {
     }
     
     /**
+     * Tests that a non-C source file will be copied as-is.
+     * 
+     * @throws IOException unwanted.
+     * @throws SetUpException unwanted.
+     */
+    @Test
+    public void testNonCFile() throws IOException, SetUpException {
+        FloridaPreparation prep = new FloridaPreparation();
+        
+        File target = new File(TESTDATA, "nonSourceFile");
+        prep.prepare(target, OUT_FOLDER);
+        
+        assertThat(OUT_FOLDER.listFiles(), is(new File[] {new File(OUT_FOLDER, "test.txt")}));
+        
+        try (LineNumberReader in = new LineNumberReader(new FileReader(new File(OUT_FOLDER, "test.txt")))) {
+            
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("//&Line[Feature_A]"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else {
+                    fail("Invalid line number: " + in.getLineNumber());
+                }
+            }
+            
+        }
+    }
+    
+    /**
      * Tests simple replacements with other C preprocessor statements in the file.
      * 
      * @throws SetUpException unwanted.
