@@ -3,6 +3,7 @@ package net.ssehub.kernel_haven.busyboot;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -100,6 +101,82 @@ public class FloridaPreparationTest {
                 
             }
             
+        }
+    }
+    
+    /**
+     * Tests simple replacements in a folder structure with sub-folders.
+     * 
+     * @throws IOException unwanted.
+     * @throws SetUpException unwanted.
+     */
+    @Test
+    public void testSimpleReplacementsWithSubFolders() throws IOException, SetUpException {
+        FloridaPreparation prep = new FloridaPreparation();
+        
+        File target = new File(TESTDATA, "subfolders");
+        prep.prepare(target, OUT_FOLDER);
+        
+        File fileA = new File(OUT_FOLDER, "file_a.c");
+        File dir1 = new File(OUT_FOLDER, "sub-folder");
+        File fileB = new File(dir1, "file_b.c");
+        File dir2 = new File(dir1, "sub-sub-folder");
+        File fileC = new File(dir2, "file_c.c");
+        
+        assertThat(fileA.isFile(), is(true));
+        assertThat(fileB.isFile(), is(true));
+        assertThat(fileC.isFile(), is(true));
+        
+        assertThat(OUT_FOLDER.listFiles().length, is(2));
+        assertThat(dir1.isDirectory(), is(true));
+        assertThat(dir1.listFiles().length, is(2));
+        assertThat(dir2.isDirectory(), is(true));
+        assertThat(dir2.listFiles().length, is(1));
+        
+        try (LineNumberReader in = new LineNumberReader(new FileReader(fileA))) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("#if defined(Feature_A)"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else if (in.getLineNumber() == 3) {
+                    assertThat(line, is("#endif // Feature_A"));
+                } else {
+                    fail("Invalid line number: " + in.getLineNumber());
+                }
+            }
+        }
+        try (LineNumberReader in = new LineNumberReader(new FileReader(fileB))) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("#if defined(Feature_B)"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else if (in.getLineNumber() == 3) {
+                    assertThat(line, is("#endif // Feature_B"));
+                } else {
+                    fail("Invalid line number: " + in.getLineNumber());
+                }
+            }
+        }
+        try (LineNumberReader in = new LineNumberReader(new FileReader(fileC))) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                
+                if (in.getLineNumber() == 1) {
+                    assertThat(line, is("#if defined(Feature_C)"));
+                } else if (in.getLineNumber() == 2) {
+                    assertThat(line, is("    someCode();"));
+                } else if (in.getLineNumber() == 3) {
+                    assertThat(line, is("#endif // Feature_C"));
+                } else {
+                    fail("Invalid line number: " + in.getLineNumber());
+                }
+            }
         }
     }
     
