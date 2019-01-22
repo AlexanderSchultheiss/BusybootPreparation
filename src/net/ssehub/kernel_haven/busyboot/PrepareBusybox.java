@@ -121,371 +121,371 @@ public class PrepareBusybox implements IPreparation {
 		
 		LOGGER.logDebug(logPrefix + "Done");
 	}
-
+	
 	/**
-	 * Make dummy makefile creates the dummy makefile with fake targets.
-	 *
-	 * @param pathToSource
-	 *            the path to source
-	 */
-	private void makeDummyMakefile(File pathToSource) throws IOException {
-	    try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
-	        writer.print("allyesconfig:\nprepare:");
-	    }
-	}
+     * Copy original source tree.
+     *
+     * @param pathToSource
+     *            the path to source tree
+     */
+    private void copyOriginal(File pathToSource) throws IOException {
+        File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
+        if (cpDir.exists()) {
+            throw new IOException("Copy directory already exists");
+        }
+        cpDir.mkdir();
+        Util.copyFolder(pathToSource, cpDir);
+    }
+    
+    /**
+     * Execute make prepare allyesconfig.
+     *
+     * @param pathToSource
+     *            the path to the source tree
+     */
+    private void executeMakePrepareAllyesconfigPrepare(File pathToSource) throws IOException {
+        ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
+        processBuilder.directory(pathToSource);
+        
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        
+        boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
+        if (!success) {
+            LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
+                    "stderr:", stderr.toString());
+            throw new IOException("make returned failure");
+        }
+    }
+    
+    /**
+     * Renames Config.in into Kconfig.
+     *
+     * @param content
+     *            the content
+     * @return the string
+     */
+    private String replaceStuff(String content) {
+        content = content.replaceAll("Config.in", "Kconfig");
+        return content;
+    }
+    
+    /**
+     * Make dummy makefile creates the dummy makefile with fake targets.
+     *
+     * @param pathToSource
+     *            the path to source
+     */
+    private void makeDummyMakefile(File pathToSource) throws IOException {
+        try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
+            writer.print("allyesconfig:\nprepare:");
+        }
+    }
+    
+    /**
+     * Starting point for modifying the c preprocessor sourcefiles based on Manuel
+     * Zerpies Busyfix.
+     *
+     * @param dir
+     *            the dir to normalize
+     */
+    private static void normalizeDir(File dir) throws IOException {
 
-	/**
-	 * Execute make prepare allyesconfig.
-	 *
-	 * @param pathToSource
-	 *            the path to the source tree
-	 */
-	private void executeMakePrepareAllyesconfigPrepare(File pathToSource) throws IOException {
-		ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
-		processBuilder.directory(pathToSource);
-		
-		ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-		ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-		
-		boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
-		if (!success) {
-		    LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
-		            "stderr:", stderr.toString());
-		    throw new IOException("make returned failure");
-		}
-	}
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (int i = 0; i < files.length; i++) {
+                if (files[i].isDirectory()) {
+                    normalizeDir(files[i]);
+                } else if (files[i].getName().endsWith(".h") || files[i].getName().endsWith(".c")) {
+                    normalizeFile(files[i]);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Normalizes a single file in style of Busyfix.
+     *
+     * @param file
+     *            the file to normalize
+     */
+    private static void normalizeFile(File file) throws IOException {
+        File tempFile;
+        FileOutputStream fos = null;
+        if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
+            return;
 
-	/**
-	 * Copy original source tree.
-	 *
-	 * @param pathToSource
-	 *            the path to source tree
-	 */
-	private void copyOriginal(File pathToSource) throws IOException {
-		File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
-		if (cpDir.exists()) {
-		    throw new IOException("Copy directory already exists");
-		}
-	    cpDir.mkdir();
-	    Util.copyFolder(pathToSource, cpDir);
-	}
+        List<String> inputFile = new ArrayList<String>();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(
+                new FileInputStream(file.getPath()), "utf-8"))) {
+            for (String line; (line = br.readLine()) != null;) {
+                inputFile.add(line);
+            }
+            file.delete();
+            tempFile = file;
+            fos = new FileOutputStream(tempFile);
+        }
+        
+        inputFile = substituteLineContinuation(inputFile);
+        
+        try (BufferedWriter bwr = new BufferedWriter(new OutputStreamWriter(fos))) {
+            for (String line : inputFile) {
+                bwr.write(normalizeLine(line));
+                bwr.write('\n');
+            }
+        }
+    }
+    
+    /**
+     * Substitutes line continuation in Busybox for easier transformation.
+     *
+     * @param inputFile
+     *            the input file as a list of lines
+     * @return the list of lines with substituted line continuation
+     */
+    private static List<String> substituteLineContinuation(List<String> inputFile) {
+        int start = -1;
+        int end = -1;
+        List<String> toReturn = new ArrayList<>();
 
-	/**
-	 * Renames Config.in into Kconfig.
-	 *
-	 * @param content
-	 *            the content
-	 * @return the string
-	 */
-	private String replaceStuff(String content) {
-		content = content.replaceAll("Config.in", "Kconfig");
-		return content;
-	}
+        for (int i = 0; i < inputFile.size(); i++) {
+            if (inputFile.get(i).endsWith(" \\")) {
+                if (start == -1) {
+                    start = i;
+                }
+                end = i;
+                continue;
+            } else {
+                end = i;
+            }
+            if (end == i && start != -1 && end >= start) {
+                String toAdd = "";
+                for (int j = start; j <= end; j++) {
+                    toAdd += inputFile.get(j);
+                }
+                toAdd = toAdd.replace("\\", "");
+                toReturn.add(toAdd);
+                start = -1;
+                end = -1;
+            } else {
+                toReturn.add(inputFile.get(i));
+                start = -1;
+                end = -1;
+            }
+        }
 
-	/**
-	 * Starting point for modifying the c preprocessor sourcefiles based on Manuel
-	 * Zerpies Busyfix.
-	 *
-	 * @param dir
-	 *            the dir to normalize
-	 */
-	private static void normalizeDir(File dir) throws IOException {
+        return toReturn;
+    }
 
-		File[] files = dir.listFiles();
-		if (files != null) {
-			for (int i = 0; i < files.length; i++) {
-				if (files[i].isDirectory()) {
-					normalizeDir(files[i]);
-				} else if (files[i].getName().endsWith(".h") || files[i].getName().endsWith(".c")) {
-					normalizeFile(files[i]);
-				}
-			}
-		}
-	}
+    /**
+     * Normalizes a single line in style of Busyfix.
+     *
+     * @param line
+     *            the line to normalize
+     * 
+     * @return the normalized line
+     */
+    private static String normalizeLine(String line) {
+        int index;
+        String temp;
+        if (line.length() == 0)
+            return line;
 
-	/**
-	 * Normalizes a single file in style of Busyfix.
-	 *
-	 * @param file
-	 *            the file to normalize
-	 */
-	private static void normalizeFile(File file) throws IOException {
-		File tempFile;
-		FileOutputStream fos = null;
-		if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
-			return;
+        if (doNotNormalizeDefUndef(line))
+            return line;
 
-		List<String> inputFile = new ArrayList<String>();
-		try (BufferedReader br = new BufferedReader(new InputStreamReader(
-		        new FileInputStream(file.getPath()), "utf-8"))) {
-			for (String line; (line = br.readLine()) != null;) {
-				inputFile.add(line);
-			}
-			file.delete();
-			tempFile = file;
-			fos = new FileOutputStream(tempFile);
-		}
-		
-		inputFile = substituteLineContinuation(inputFile);
-		
-		try (BufferedWriter bwr = new BufferedWriter(new OutputStreamWriter(fos))) {
-		    for (String line : inputFile) {
-		        bwr.write(normalizeLine(line));
-		        bwr.write('\n');
-		    }
-		}
-	}
+        // don't normalize comments
+        if (line.contains("//")) {
+            index = line.indexOf("//");
+            return normalizeLine(line.substring(0, index)) + line.substring(index);
+        }
+        if (line.contains("/*") || line.contains("*/") || line.replace("\\t", " ").trim().startsWith("*")) {
+            // lines that start with or are block comments
+            if (line.replace("\\t", " ").trim().startsWith("/*") || line.replace("\\t", " ").trim().startsWith("*")) {
+                // fully comment
+                if (!line.contains("*/")) {
+                    return line;
 
-	/**
-	 * Normalizes a single line in style of Busyfix.
-	 *
-	 * @param line
-	 *            the line to normalize
-	 * 
-	 * @return the normalized line
-	 */
-	private static String normalizeLine(String line) {
-		int index;
-		String temp;
-		if (line.length() == 0)
-			return line;
+                } else {
+                    return line.substring(0, line.indexOf("*/") + 2)
+                            + normalizeLine(line.substring(line.indexOf("*/") + 2));
+                }
 
-		if (doNotNormalizeDefUndef(line))
-			return line;
+            } else if (line.contains("/*")) {
+                return normalizeLine(line.substring(0, line.indexOf("/*")))
+                        + line.substring(line.indexOf("/*"));
 
-		// don't normalize comments
-		if (line.contains("//")) {
-			index = line.indexOf("//");
-			return normalizeLine(line.substring(0, index)) + line.substring(index);
-		}
-		if (line.contains("/*") || line.contains("*/") || line.replace("\\t", " ").trim().startsWith("*")) {
-			// lines that start with or are block comments
-			if (line.replace("\\t", " ").trim().startsWith("/*") || line.replace("\\t", " ").trim().startsWith("*")) {
-				// fully comment
-				if (!line.contains("*/")) {
-					return line;
+            }
+        }
+        // malformed comments in scripts/basic/fixdep.c
+        if (line.contains("if (!memcmp(p, \"IF_NOT\", 6)) goto conf7")
+                || line.contains("/*if (!memcmp(p, \"IF_\", 3)) ...*/"))
+            return line;
+        temp = normalizeDefinedEnableMacro(line);
+        temp = normalizeEnableMacro(temp);
+        temp = normalizeEnableInline(temp);
+        temp = normalizeIf(temp);
+        return temp;
+    }
+    
+    /**
+     * Do not normalize def undef checks that def undefs are not getting normalized
+     * Busyfix style
+     *
+     * @param line
+     *            the line
+     * @return true, if successful
+     */
+    private static boolean doNotNormalizeDefUndef(String line) {
+        boolean toRet = false;
+        if (line.contains("#undef") || line.contains("#define") || line.contains("# define")
+                || line.contains("# undef"))
+            toRet = true;
+        return toRet;
+    }
 
-				} else {
-					return line.substring(0, line.indexOf("*/") + 2)
-							+ normalizeLine(line.substring(line.indexOf("*/") + 2));
-				}
+    /**
+     * Normalize defined enable macro in Busyfix style.
+     *
+     * @param line
+     *            the line to normalize
+     * @return the normalized line
+     */
+    private static String normalizeDefinedEnableMacro(String line) {
+        return line.replace("defined ENABLE_", "defined CONFIG_");
+    }
 
-			} else if (line.contains("/*")) {
-				return normalizeLine(line.substring(0, line.indexOf("/*")))
-						+ line.substring(line.indexOf("/*"));
+    /**
+     * Normalizes enable macro in Busyfix style.
+     *
+     * @param temp
+     *            the string to normalize
+     * @return the normalized string
+     */
+    private static String normalizeEnableMacro(String temp) {
+        if (temp.contains("if ENABLE_")) {
+            temp = temp.replace("if ENABLE_", "if defined CONFIG_");
+        }
+        if (temp.contains("if !ENABLE_")) {
+            temp = temp.replace("if !ENABLE_", "if !defined CONFIG_");
+        }
+        if (temp.contains("|| ENABLE_")) {
+            temp = temp.replace("ENABLE_", "defined CONFIG_");
+        }
+        if (temp.contains("&& ENABLE_")) {
+            temp = temp.replace("ENABLE_", "'defined CONFIG_");
+        }
+        if (temp.contains("|| !ENABLE_")) {
+            temp = temp.replace("!ENABLE_", "!defined CONFIG_");
+        }
+        if (temp.contains("&& !ENABLE_")) {
+            temp = temp.replace("!ENABLE_", "'!defined CONFIG_");
+        }
 
-			}
-		}
-		// malformed comments in scripts/basic/fixdep.c
-		if (line.contains("if (!memcmp(p, \"IF_NOT\", 6)) goto conf7")
-				|| line.contains("/*if (!memcmp(p, \"IF_\", 3)) ...*/"))
-			return line;
-		temp = normalizeDefinedEnableMacro(line);
-		temp = normalizeEnableMacro(temp);
-		temp = normalizeEnableInline(temp);
-		temp = normalizeIf(temp);
-		return temp;
-	}
+        return temp;
+    }
 
-	/**
-	 * Normalizes if structures in Busyfix style.
-	 *
-	 * @param temp
-	 *            the temp
-	 * 
-	 * @return the string
-	 */
-	private static String normalizeIf(String temp) {
-		if (!temp.contains("IF_"))
-			return temp;
-		String variable = "";
-		String init = "";
-		String toRet = "";
-		
-		if (temp.contains("(") && temp.contains(")")) {
-			int indexOpening = temp.indexOf("(", temp.indexOf("IF_"));
-			int indexClosing = temp.length() - 1;
+    /**
+     * Normalizes enable inline in Busyfix style.
+     *
+     * @param temp
+     *            the string to normalize
+     * @return the normalized string
+     */
+    private static String normalizeEnableInline(String temp) {
 
-			int openingCount = 0;
+        if (temp.contains("_ENABLE_") || temp.contains("#if"))
+            return temp;
+        if (temp.contains("ENABLE_")) {
+            temp = temp.replace("ENABLE_", "\n#if defined CONFIG_");
+            StringBuilder strB = new StringBuilder(temp);
+            if (temp.contains("if (\n#if defined CONFIG_")) {
+                try {
+                    strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
+                } catch (StringIndexOutOfBoundsException exc) {
+                    try {
+                        strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
+                    } catch (Exception exc2) {
+                        strB.append("\n1\n#else\n0\n#endif\n");
+                    }
 
-			char[] chars = temp.toCharArray();
+                }
+                temp = strB.toString();
+                return temp;
+            }
 
-			for (int i = indexOpening + 1; i < chars.length; i++) {
-				if (chars[i] == '(') {
-					openingCount++;
-				} else if (chars[i] == ')') {
-					if (openingCount == 0) {
-						indexClosing = i;
-						break;
-					}
-					openingCount--;
-				}
-			}
+            // findOutWhat CONFIG_X is followed by and at which index of string
+            int indexOfWhitespace = temp.indexOf(" ", temp.indexOf("defined CONFIG_") + 10);
+            int indexOfComma = temp.indexOf(",", temp.indexOf("defined CONFIG_") + 10);
+            int indexOfParenthesis = temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10);
+            int indexToInsert = indexOfWhitespace;
+            if (indexOfComma != -1 && (indexOfComma < indexToInsert || indexToInsert == -1))
+                indexToInsert = indexOfComma;
+            if (indexOfParenthesis != -1 && (indexOfParenthesis < indexToInsert || indexToInsert == -1))
+                indexToInsert = indexOfComma;
+            if (indexToInsert != -1) {
+                strB.insert(indexToInsert, "\n1\n#else\n0\n#endif\n");
+            } else {
+                strB.append("\n1\n#else\n0\n#endif\n");
 
-			variable = temp.substring(indexOpening, indexClosing);
-			init = "\n" + temp.substring(indexClosing + 1);
+            }
+            temp = strB.toString();
+        }
+        return temp;
+    }
+    
+    /**
+     * Normalizes if structures in Busyfix style.
+     *
+     * @param temp
+     *            the temp
+     * 
+     * @return the string
+     */
+    private static String normalizeIf(String temp) {
+        if (!temp.contains("IF_"))
+            return temp;
+        String variable = "";
+        String init = "";
+        String toRet = "";
+        
+        if (temp.contains("(") && temp.contains(")")) {
+            int indexOpening = temp.indexOf("(", temp.indexOf("IF_"));
+            int indexClosing = temp.length() - 1;
 
-			temp = temp.substring(0, indexOpening);
-		}
-		if (temp.contains("IF_NOT_")) {
-			temp = temp.replace("IF_NOT_", "\n#if !defined CONFIG_");
-		} else if (temp.contains("IF_")) {
-			temp = temp.replace("IF_", "\n#if defined CONFIG_");
-		}
+            int openingCount = 0;
 
-		toRet = temp + "\n";
-		if (variable.length() != 0)
-			toRet += variable.substring(1);
-		toRet += "\n#endif" + init;
-		return toRet;
-	}
+            char[] chars = temp.toCharArray();
 
-	/**
-	 * Normalizes enable inline in Busyfix style.
-	 *
-	 * @param temp
-	 *            the string to normalize
-	 * @return the normalized string
-	 */
-	private static String normalizeEnableInline(String temp) {
+            for (int i = indexOpening + 1; i < chars.length; i++) {
+                if (chars[i] == '(') {
+                    openingCount++;
+                } else if (chars[i] == ')') {
+                    if (openingCount == 0) {
+                        indexClosing = i;
+                        break;
+                    }
+                    openingCount--;
+                }
+            }
 
-		if (temp.contains("_ENABLE_") || temp.contains("#if"))
-			return temp;
-		if (temp.contains("ENABLE_")) {
-			temp = temp.replace("ENABLE_", "\n#if defined CONFIG_");
-			StringBuilder strB = new StringBuilder(temp);
-			if (temp.contains("if (\n#if defined CONFIG_")) {
-				try {
-					strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
-				} catch (StringIndexOutOfBoundsException exc) {
-					try {
-						strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
-					} catch (Exception exc2) {
-						strB.append("\n1\n#else\n0\n#endif\n");
-					}
+            variable = temp.substring(indexOpening, indexClosing);
+            init = "\n" + temp.substring(indexClosing + 1);
 
-				}
-				temp = strB.toString();
-				return temp;
-			}
+            temp = temp.substring(0, indexOpening);
+        }
+        if (temp.contains("IF_NOT_")) {
+            temp = temp.replace("IF_NOT_", "\n#if !defined CONFIG_");
+        } else if (temp.contains("IF_")) {
+            temp = temp.replace("IF_", "\n#if defined CONFIG_");
+        }
 
-			// findOutWhat CONFIG_X is followed by and at which index of string
-			int indexOfWhitespace = temp.indexOf(" ", temp.indexOf("defined CONFIG_") + 10);
-			int indexOfComma = temp.indexOf(",", temp.indexOf("defined CONFIG_") + 10);
-			int indexOfParenthesis = temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10);
-			int indexToInsert = indexOfWhitespace;
-			if (indexOfComma != -1 && (indexOfComma < indexToInsert || indexToInsert == -1))
-				indexToInsert = indexOfComma;
-			if (indexOfParenthesis != -1 && (indexOfParenthesis < indexToInsert || indexToInsert == -1))
-				indexToInsert = indexOfComma;
-			if (indexToInsert != -1) {
-				strB.insert(indexToInsert, "\n1\n#else\n0\n#endif\n");
-			} else {
-				strB.append("\n1\n#else\n0\n#endif\n");
-
-			}
-			temp = strB.toString();
-		}
-		return temp;
-	}
-
-	/**
-	 * Normalizes enable macro in Busyfix style.
-	 *
-	 * @param temp
-	 *            the string to normalize
-	 * @return the normalized string
-	 */
-	private static String normalizeEnableMacro(String temp) {
-		if (temp.contains("if ENABLE_")) {
-			temp = temp.replace("if ENABLE_", "if defined CONFIG_");
-		}
-		if (temp.contains("if !ENABLE_")) {
-			temp = temp.replace("if !ENABLE_", "if !defined CONFIG_");
-		}
-		if (temp.contains("|| ENABLE_")) {
-			temp = temp.replace("ENABLE_", "defined CONFIG_");
-		}
-		if (temp.contains("&& ENABLE_")) {
-			temp = temp.replace("ENABLE_", "'defined CONFIG_");
-		}
-		if (temp.contains("|| !ENABLE_")) {
-			temp = temp.replace("!ENABLE_", "!defined CONFIG_");
-		}
-		if (temp.contains("&& !ENABLE_")) {
-			temp = temp.replace("!ENABLE_", "'!defined CONFIG_");
-		}
-
-		return temp;
-	}
-
-	/**
-	 * Normalize defined enable macro in Busyfix style.
-	 *
-	 * @param line
-	 *            the line to normalize
-	 * @return the normalized line
-	 */
-	private static String normalizeDefinedEnableMacro(String line) {
-		return line.replace("defined ENABLE_", "defined CONFIG_");
-	}
-
-	/**
-	 * Do not normalize def undef checks that def undefs are not getting normalized
-	 * Busyfix style
-	 *
-	 * @param line
-	 *            the line
-	 * @return true, if successful
-	 */
-	private static boolean doNotNormalizeDefUndef(String line) {
-		boolean toRet = false;
-		if (line.contains("#undef") || line.contains("#define") || line.contains("# define")
-				|| line.contains("# undef"))
-			toRet = true;
-		return toRet;
-	}
-
-	/**
-	 * Substitutes line continuation in Busybox for easier transformation.
-	 *
-	 * @param inputFile
-	 *            the input file as a list of lines
-	 * @return the list of lines with substituted line continuation
-	 */
-	private static List<String> substituteLineContinuation(List<String> inputFile) {
-		int start = -1;
-		int end = -1;
-		List<String> toReturn = new ArrayList<>();
-
-		for (int i = 0; i < inputFile.size(); i++) {
-			if (inputFile.get(i).endsWith(" \\")) {
-				if (start == -1) {
-					start = i;
-				}
-				end = i;
-				continue;
-			} else {
-				end = i;
-			}
-			if (end == i && start != -1 && end >= start) {
-				String toAdd = "";
-				for (int j = start; j <= end; j++) {
-					toAdd += inputFile.get(j);
-				}
-				toAdd = toAdd.replace("\\", "");
-				toReturn.add(toAdd);
-				start = -1;
-				end = -1;
-			} else {
-				toReturn.add(inputFile.get(i));
-				start = -1;
-				end = -1;
-			}
-		}
-
-		return toReturn;
-	}
+        toRet = temp + "\n";
+        if (variable.length() != 0)
+            toRet += variable.substring(1);
+        toRet += "\n#endif" + init;
+        return toRet;
+    }
 
 	/**
 	 * Find files by name recursively full depth.
