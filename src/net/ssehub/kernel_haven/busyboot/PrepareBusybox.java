@@ -174,7 +174,7 @@ public class PrepareBusybox implements IPreparation {
      */
     private void makeDummyMakefile(File pathToSource) throws IOException {
         try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
-            writer.print("allyesconfig:\nprepare:");
+            writer.print("allyesconfig:\n\nprepare:\n");
         }
     }
     
@@ -213,7 +213,7 @@ public class PrepareBusybox implements IPreparation {
 
         List<String> inputFile = new ArrayList<String>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                new FileInputStream(file.getPath()), "utf-8"))) {
+                new FileInputStream(file.getPath()), StandardCharsets.UTF_8))) {
             for (String line; (line = br.readLine()) != null;) {
                 inputFile.add(line);
             }
