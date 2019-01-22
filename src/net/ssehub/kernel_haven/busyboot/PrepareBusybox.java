@@ -76,7 +76,7 @@ public class PrepareBusybox implements IPreparation {
         }
 		
 		LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
-		ArrayList<File> matchingFiles = findFilesByName(pathToSource, "Config.in");
+		List<File> matchingFiles = findFilesByName(pathToSource, "Config.in");
 		for (File file : matchingFiles) {
 			Path path = Paths.get(file.getPath());
 			Charset charset = StandardCharsets.UTF_8;
@@ -488,38 +488,37 @@ public class PrepareBusybox implements IPreparation {
     }
 
 	/**
-	 * Find files by name recursively full depth.
+	 * Finds all files in the given directory (recursively) that have exactly the given filename.
 	 *
-	 * @param directory
-	 *            the directory
-	 * @param filename
-	 *            the filename
-	 * @return the array list of found files
+	 * @param directory The directory to search in.
+	 * @param filename The filename to search for.
+	 * 
+	 * @return A list of all files that have the given filename.
 	 */
-	private ArrayList<File> findFilesByName(File directory, String filename) {
-		ArrayList<File> matchingFiles = new ArrayList<File>();
-		findFilesHelper(directory, matchingFiles, filename);
+	private static List<File> findFilesByName(File directory, String filename) {
+	    List<File> matchingFiles = new ArrayList<File>();
+	    if (directory.isDirectory()) {
+	        findFilesHelper(directory, filename, matchingFiles);
+	    }
 		return matchingFiles;
 	}
 
 	/**
-	 * Find files helpermethod for recursion.
+	 * Helper method for {@link #findFilesByName(File, String)}. Recursively walks through the given directory and
+	 * all sub-directories and finds all files that have exactly the given filename.
 	 *
-	 * @param directory
-	 *            the directory
-	 * @param files
-	 *            the files
-	 * @param filename
-	 *            the filename
+	 * @param directory The directory to search in.
+	 * @param filename The filename to search for.
+	 * @param result The list to add the matching files to.
 	 */
-	private void findFilesHelper(File directory, ArrayList<File> files, String filename) {
+	private static void findFilesHelper(File directory, String filename, List<File> result) {
 		// get all the files from a directory
 		File[] fList = directory.listFiles();
 		for (File file : fList) {
-			if (file.isFile() && file.getName().endsWith(filename)) {
-				files.add(file);
+			if (file.isFile() && file.getName().equals(filename)) {
+				result.add(file);
 			} else if (file.isDirectory()) {
-				findFilesHelper(file, files, filename);
+				findFilesHelper(file, filename, result);
 			}
 		}
 	}
