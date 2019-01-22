@@ -25,57 +25,48 @@ import net.ssehub.kernel_haven.util.Util;
 import net.ssehub.kernel_haven.util.null_checks.NonNull;
 
 /**
- * The Class PrepareBusybox implements the Interface IPreparetion and
- * manipulates a Busybox Sourcetree so that it is compatible with KConfigreader
- * and codemodelextractors.
+ * A preparation for Busybox source trees. This modifies the source tree in a way that the normal Linux extractors
+ * work for them.
  * 
  * @author Kevin
+ * @author Adam
  */
 public class PrepareBusybox implements IPreparation {
     
     private static final @NonNull Logger LOGGER = Logger.get();
     
+    private @NonNull File sourceTree = new File(""); // will be initialized in run()
 
-	/**
-	 * The run method as it is requested by IPreparation. Just getting the Path from
-	 * the Config file and calling run(String pathSource).
-	 * 
-	 * @see net.ssehub.kernel_haven.IPreparation#run(net.ssehub.kernel_haven.config.Configuration)
-	 */
 	@Override
 	public void run(@NonNull Configuration config) throws SetUpException {
-		File pathToSource = config.getValue(DefaultSettings.SOURCE_TREE);
-		LOGGER.logInfo("Starting PrepareBusybox for " + pathToSource);
-		run(pathToSource);
-
+		this.sourceTree = config.getValue(DefaultSettings.SOURCE_TREE);
+		LOGGER.logInfo("Starting PrepareBusybox for " + sourceTree);
+		runImpl();
 	}
 
 	/**
-	 * The real run method, managing the manipulation of Busybox Sourcetree.
-	 *
-	 * @param pathSource
-	 *            the path to the sourcetree
+	 * The real run method, managing the manipulation of Busybox source tree.
 	 */
-	private void run(@NonNull File pathToSource) throws SetUpException {
+	private void runImpl() throws SetUpException {
 		String logPrefix = "Busybox Preparation: ";
 		
 		LOGGER.logDebug(logPrefix + "Copy Source Tree");
 		try {
-            copyOriginal(pathToSource);
+            copyOriginal();
         } catch (IOException e) {
             throw new SetUpException("Couldn't copy source tree", e);
         }
 		
 		LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
 		try {
-            executeMakePrepareAllyesconfigPrepare(pathToSource);
+            executeMakePrepareAllyesconfigPrepare();
         } catch (IOException e) {
-            throw new SetUpException("Couldn't execute 'make prepare allyesconfig'", e);
+            throw new SetUpException("Couldn't execute 'make allyesconfig prepare'", e);
         }
 		
 		LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
 		try {
-		    for (File file : findFilesByName(pathToSource, "Config.in")) {
+		    for (File file : findFilesByName(sourceTree, "Config.in")) {
 		        replaceInFile(file, new File(file.getParentFile(), "Kconfig"), "Config.in", "Kconfig");
 		    }
 		} catch (IOException exc) {
@@ -84,7 +75,7 @@ public class PrepareBusybox implements IPreparation {
 		
 		LOGGER.logDebug(logPrefix + "Renaming obj- list");
         try {
-    		for (File file : findFilesByName(pathToSource, "Kbuild")) {
+    		for (File file : findFilesByName(sourceTree, "Kbuild")) {
     		    replaceInFile(file, file, "lib-", "obj-");
     		}
         } catch (IOException exc) {
@@ -93,14 +84,14 @@ public class PrepareBusybox implements IPreparation {
 		
 		LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
 		try {
-            makeDummyMakefile(pathToSource);
+            makeDummyMakefile();
         } catch (IOException e) {
             throw new SetUpException("Couldn't write Makefile", e);
         }
 		
 		LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
 		try {
-            normalizeDir(pathToSource);
+            normalizeDir(sourceTree);
         } catch (IOException e) {
             throw new SetUpException("Couldn't normalize file contents", e);
         }
@@ -109,29 +100,23 @@ public class PrepareBusybox implements IPreparation {
 	}
 	
 	/**
-     * Copy original source tree.
-     *
-     * @param pathToSource
-     *            the path to source tree
+     * Copies the source tree so that we keep an unmodified version.
      */
-    private void copyOriginal(@NonNull File pathToSource) throws IOException {
-        File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
+    private void copyOriginal() throws IOException {
+        File cpDir = new File(sourceTree.getParentFile(), sourceTree.getName() + "UnchangedCopy");
         if (cpDir.exists()) {
             throw new IOException("Copy directory already exists");
         }
         cpDir.mkdir();
-        Util.copyFolder(pathToSource, cpDir);
+        Util.copyFolder(sourceTree, cpDir);
     }
     
     /**
-     * Execute make prepare allyesconfig.
-     *
-     * @param pathToSource
-     *            the path to the source tree
+     * Executes 'make allyesconfig prepare' to prepare the busybox tree for analysis.
      */
-    private void executeMakePrepareAllyesconfigPrepare(@NonNull File pathToSource) throws IOException {
+    private void executeMakePrepareAllyesconfigPrepare() throws IOException {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
-        processBuilder.directory(pathToSource);
+        processBuilder.directory(sourceTree);
         
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -171,23 +156,19 @@ public class PrepareBusybox implements IPreparation {
     }
     
     /**
-     * Make dummy makefile creates the dummy makefile with fake targets.
-     *
-     * @param pathToSource
-     *            the path to source
+     * Creates a dummy Makefile with the targets 'allyesconfig' and 'prepare', so that extractors that call these
+     * targets again will not fail.
      */
-    private void makeDummyMakefile(@NonNull File pathToSource) throws IOException {
-        try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
+    private void makeDummyMakefile() throws IOException {
+        try (PrintWriter writer = new PrintWriter(new File(sourceTree, "Makefile"))) {
             writer.print("allyesconfig:\n\nprepare:\n");
         }
     }
     
     /**
-     * Starting point for modifying the c preprocessor sourcefiles based on Manuel
-     * Zerpies Busyfix.
+     * Starting point for modifying the c preprocessor source files based on Manuel Zerpies Busyfix.
      *
-     * @param dir
-     *            the dir to normalize
+     * @param dir The directory to normalize all source files in.
      */
     private static void normalizeDir(@NonNull File dir) throws IOException {
 
@@ -206,8 +187,7 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Normalizes a single file in style of Busyfix.
      *
-     * @param file
-     *            the file to normalize
+     * @param file The file to normalize.
      */
     private static void normalizeFile(@NonNull File file) throws IOException {
         File tempFile;
@@ -239,9 +219,9 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Substitutes line continuation in Busybox for easier transformation.
      *
-     * @param inputFile
-     *            the input file as a list of lines
-     * @return the list of lines with substituted line continuation
+     * @param inputFile The input file as a list of lines.
+     * 
+     * @return The list of lines with substituted line continuation
      */
     private static @NonNull List<@NonNull String> substituteLineContinuation(@NonNull List<@NonNull String> inputFile) {
         int start = -1;
@@ -280,10 +260,9 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Normalizes a single line in style of Busyfix.
      *
-     * @param line
-     *            the line to normalize
+     * @param line The line to normalize
      * 
-     * @return the normalized line
+     * @return The normalized line.
      */
     private static @NonNull String normalizeLine(@NonNull String line) {
         int index;
@@ -329,12 +308,11 @@ public class PrepareBusybox implements IPreparation {
     }
     
     /**
-     * Do not normalize def undef checks that def undefs are not getting normalized
-     * Busyfix style
+     * Checks whether the given line is a #define or #undef line.
      *
-     * @param line
-     *            the line
-     * @return true, if successful
+     * @param line The line to check.
+     * 
+     * @return Whether the given line is a #define or #undef.
      */
     private static boolean doNotNormalizeDefUndef(@NonNull String line) {
         boolean toRet = false;
@@ -347,9 +325,9 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Normalize defined enable macro in Busyfix style.
      *
-     * @param line
-     *            the line to normalize
-     * @return the normalized line
+     * @param line The line to normalize.
+     * 
+     * @return The normalized line.
      */
     private static @NonNull String normalizeDefinedEnableMacro(@NonNull String line) {
         return notNull(line.replace("defined ENABLE_", "defined CONFIG_"));
@@ -358,9 +336,9 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Normalizes enable macro in Busyfix style.
      *
-     * @param temp
-     *            the string to normalize
-     * @return the normalized string
+     * @param temp The string to normalize.
+     * 
+     * @return The normalized string.
      */
     private static @NonNull String normalizeEnableMacro(@NonNull String temp) {
         if (temp.contains("if ENABLE_")) {
@@ -388,36 +366,36 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Normalizes enable inline in Busyfix style.
      *
-     * @param temp
-     *            the string to normalize
-     * @return the normalized string
+     * @param line The line to normalize.
+     * 
+     * @return The normalized line.
      */
-    private static @NonNull String normalizeEnableInline(@NonNull String temp) {
+    private static @NonNull String normalizeEnableInline(@NonNull String line) {
 
-        if (temp.contains("_ENABLE_") || temp.contains("#if"))
-            return temp;
-        if (temp.contains("ENABLE_")) {
-            temp = notNull(temp.replace("ENABLE_", "\n#if defined CONFIG_"));
-            StringBuilder strB = new StringBuilder(temp);
-            if (temp.contains("if (\n#if defined CONFIG_")) {
+        if (line.contains("_ENABLE_") || line.contains("#if"))
+            return line;
+        if (line.contains("ENABLE_")) {
+            line = notNull(line.replace("ENABLE_", "\n#if defined CONFIG_"));
+            StringBuilder strB = new StringBuilder(line);
+            if (line.contains("if (\n#if defined CONFIG_")) {
                 try {
-                    strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
+                    strB.insert(line.indexOf(")", line.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
                 } catch (StringIndexOutOfBoundsException exc) {
                     try {
-                        strB.insert(temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
+                        strB.insert(line.indexOf(")", line.indexOf("defined CONFIG_") + 10), "\n1\n#else\n0\n#endif\n");
                     } catch (Exception exc2) {
                         strB.append("\n1\n#else\n0\n#endif\n");
                     }
 
                 }
-                temp = notNull(strB.toString());
-                return temp;
+                line = notNull(strB.toString());
+                return line;
             }
 
             // findOutWhat CONFIG_X is followed by and at which index of string
-            int indexOfWhitespace = temp.indexOf(" ", temp.indexOf("defined CONFIG_") + 10);
-            int indexOfComma = temp.indexOf(",", temp.indexOf("defined CONFIG_") + 10);
-            int indexOfParenthesis = temp.indexOf(")", temp.indexOf("defined CONFIG_") + 10);
+            int indexOfWhitespace = line.indexOf(" ", line.indexOf("defined CONFIG_") + 10);
+            int indexOfComma = line.indexOf(",", line.indexOf("defined CONFIG_") + 10);
+            int indexOfParenthesis = line.indexOf(")", line.indexOf("defined CONFIG_") + 10);
             int indexToInsert = indexOfWhitespace;
             if (indexOfComma != -1 && (indexOfComma < indexToInsert || indexToInsert == -1))
                 indexToInsert = indexOfComma;
@@ -429,33 +407,32 @@ public class PrepareBusybox implements IPreparation {
                 strB.append("\n1\n#else\n0\n#endif\n");
 
             }
-            temp = notNull(strB.toString());
+            line = notNull(strB.toString());
         }
-        return temp;
+        return line;
     }
     
     /**
      * Normalizes if structures in Busyfix style.
      *
-     * @param temp
-     *            the temp
+     * @param line The line to do normalization in.
      * 
-     * @return the string
+     * @return The normalized line.
      */
-    private static @NonNull String normalizeIf(@NonNull String temp) {
-        if (!temp.contains("IF_"))
-            return temp;
+    private static @NonNull String normalizeIf(@NonNull String line) {
+        if (!line.contains("IF_"))
+            return line;
         String variable = "";
         String init = "";
         String toRet = "";
         
-        if (temp.contains("(") && temp.contains(")")) {
-            int indexOpening = temp.indexOf("(", temp.indexOf("IF_"));
-            int indexClosing = temp.length() - 1;
+        if (line.contains("(") && line.contains(")")) {
+            int indexOpening = line.indexOf("(", line.indexOf("IF_"));
+            int indexClosing = line.length() - 1;
 
             int openingCount = 0;
 
-            char[] chars = temp.toCharArray();
+            char[] chars = line.toCharArray();
 
             for (int i = indexOpening + 1; i < chars.length; i++) {
                 if (chars[i] == '(') {
@@ -469,18 +446,18 @@ public class PrepareBusybox implements IPreparation {
                 }
             }
 
-            variable = temp.substring(indexOpening, indexClosing);
-            init = "\n" + temp.substring(indexClosing + 1);
+            variable = line.substring(indexOpening, indexClosing);
+            init = "\n" + line.substring(indexClosing + 1);
 
-            temp = notNull(temp.substring(0, indexOpening));
+            line = notNull(line.substring(0, indexOpening));
         }
-        if (temp.contains("IF_NOT_")) {
-            temp = notNull(temp.replace("IF_NOT_", "\n#if !defined CONFIG_"));
-        } else if (temp.contains("IF_")) {
-            temp = notNull(temp.replace("IF_", "\n#if defined CONFIG_"));
+        if (line.contains("IF_NOT_")) {
+            line = notNull(line.replace("IF_NOT_", "\n#if !defined CONFIG_"));
+        } else if (line.contains("IF_")) {
+            line = notNull(line.replace("IF_", "\n#if defined CONFIG_"));
         }
 
-        toRet = temp + "\n";
+        toRet = line + "\n";
         if (variable.length() != 0)
             toRet += variable.substring(1);
         toRet += "\n#endif" + init;
