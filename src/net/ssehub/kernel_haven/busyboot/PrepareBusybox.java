@@ -10,11 +10,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,40 +72,28 @@ public class PrepareBusybox implements IPreparation {
         }
 		
 		LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
-		List<File> matchingFiles = findFilesByName(pathToSource, "Config.in");
-		for (File file : matchingFiles) {
-			Path path = Paths.get(file.getPath());
-			Charset charset = StandardCharsets.UTF_8;
-			try {
-				String content = new String(Files.readAllBytes(path), charset);
-				content = replaceStuff(content);
-				Files.write(path, content.getBytes(charset));
-			} catch (IOException exc) {
-			    throw new SetUpException("Can't write or read file " + file, exc);
-
-			}
-			file.renameTo(new File(file.getParentFile(), file.getName().replace("Config.in", "Kconfig")));
-		}
+		try {
+		    for (File file : findFilesByName(pathToSource, "Config.in")) {
+		        replaceInFile(file, new File(file.getParentFile(), "Kconfig"), "Config.in", "Kconfig");
+		    }
+		} catch (IOException exc) {
+            throw new SetUpException("Couldn't replace in Config.in files", exc);
+        }
 		
 		LOGGER.logDebug(logPrefix + "Renaming obj- list");
-		matchingFiles = findFilesByName(pathToSource, "Kbuild");
-		for (File file : matchingFiles) {
-			Path path = Paths.get(file.getPath());
-			Charset charset = StandardCharsets.UTF_8;
-			try {
-				String content = new String(Files.readAllBytes(path), charset);
-				content = content.replace("lib-", "obj-");
-				Files.write(path, content.getBytes(charset));
-			} catch (IOException exc) {
-                throw new SetUpException("Can't write or read file " + file, exc);
-			}
-		}
+        try {
+    		for (File file : findFilesByName(pathToSource, "Kbuild")) {
+    		    replaceInFile(file, file, "lib-", "obj-");
+    		}
+        } catch (IOException exc) {
+            throw new SetUpException("Couldn't replace in Kbuild files", exc);
+        }
 		
 		LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
 		try {
             makeDummyMakefile(pathToSource);
         } catch (IOException e) {
-            throw new SetUpException("Can't write Makefile", e);
+            throw new SetUpException("Couldn't write Makefile", e);
         }
 		
 		LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
@@ -159,15 +143,27 @@ public class PrepareBusybox implements IPreparation {
     }
     
     /**
-     * Renames Config.in into Kconfig.
-     *
-     * @param content
-     *            the content
-     * @return the string
+     * Reads the contents of source, does string-based replacements, and writes the result as target.
+     * 
+     * @param source The source file to read the content from. This file will be delete after reading.
+     * @param target The target file to write the replaced content to. This may be the same as source.
+     * @param from The string to replace in the content.
+     * @param to The string to replace occurrences of <code>from</code> with.
+     * 
+     * @throws IOException If reading or writing the file(s) fails.
      */
-    private String replaceStuff(String content) {
-        content = content.replaceAll("Config.in", "Kconfig");
-        return content;
+    private static void replaceInFile(File source, File target, String from, String to) throws IOException {
+        String content;
+        try (FileInputStream in = new FileInputStream(source)) {
+            content = Util.readStream(in);
+        }
+        source.delete();
+
+        content = content.replace(from, to);
+        
+        try (FileOutputStream out = new FileOutputStream(target)) {
+            out.write(content.getBytes(StandardCharsets.UTF_8));
+        }
     }
     
     /**
