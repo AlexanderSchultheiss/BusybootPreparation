@@ -2,6 +2,7 @@ package net.ssehub.kernel_haven.busyboot;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -143,8 +144,13 @@ public class PrepareBusybox implements IPreparation {
 		ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
 		processBuilder.directory(pathToSource);
 		
-		boolean success = Util.executeProcess(processBuilder, "make");
+		ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+		ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+		
+		boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
 		if (!success) {
+		    LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
+		            "stderr:", stderr.toString());
 		    throw new IOException("make returned failure");
 		}
 	}
