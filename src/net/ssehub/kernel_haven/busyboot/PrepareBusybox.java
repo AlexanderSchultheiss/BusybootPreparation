@@ -4,7 +4,6 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -34,6 +33,9 @@ import net.ssehub.kernel_haven.util.null_checks.NonNull;
  * @author Kevin
  */
 public class PrepareBusybox implements IPreparation {
+    
+    private static final @NonNull Logger LOGGER = Logger.get();
+    
 
 	/**
 	 * The run method as it is requested by IPreparation. Just getting the Path from
@@ -44,7 +46,7 @@ public class PrepareBusybox implements IPreparation {
 	@Override
 	public void run(@NonNull Configuration config) throws SetUpException {
 		File pathToSource = config.getValue(DefaultSettings.SOURCE_TREE);
-		Logger.get().logInfo("Starting PrepareBusybox for " + pathToSource);
+		LOGGER.logInfo("Starting PrepareBusybox for " + pathToSource);
 		run(pathToSource);
 
 	}
@@ -55,13 +57,24 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathSource
 	 *            the path to the sourcetree
 	 */
-	private void run(File pathToSource) {
+	private void run(File pathToSource) throws SetUpException {
 		String logPrefix = "Busybox Preparation: ";
-		Logger.get().logDebug(logPrefix + "Copy Source Tree");
-		copyOriginal(pathToSource);
-		Logger.get().logDebug(logPrefix + "Execute make allyescongif prepare");
-		executeMakePrepareAllyesconfigPrepare(pathToSource);
-		Logger.get().logDebug(logPrefix + "Renaming Conig.in to Kconfig");
+		
+		LOGGER.logDebug(logPrefix + "Copy Source Tree");
+		try {
+            copyOriginal(pathToSource);
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't copy source tree", e);
+        }
+		
+		LOGGER.logDebug(logPrefix + "Execute make allyescongif prepare");
+		try {
+            executeMakePrepareAllyesconfigPrepare(pathToSource);
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't execute 'make prepare allyesconfig'", e);
+        }
+		
+		LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
 		ArrayList<File> matchingFiles = findFilesByName(pathToSource, "Config.in");
 		for (File file : matchingFiles) {
 			Path path = Paths.get(file.getPath());
@@ -71,13 +84,13 @@ public class PrepareBusybox implements IPreparation {
 				content = replaceStuff(content);
 				Files.write(path, content.getBytes(charset));
 			} catch (IOException exc) {
-				Logger.get().logWarning(exc.getMessage());
-				exc.printStackTrace();
+			    throw new SetUpException("Can't write or read file " + file, exc);
 
 			}
-			file.renameTo(new File(file.getAbsolutePath().replace("Config.in", "Kconfig")));
+			file.renameTo(new File(file.getParentFile(), file.getName().replace("Config.in", "Kconfig")));
 		}
-		Logger.get().logDebug(logPrefix + "Renaming obj- list");
+		
+		LOGGER.logDebug(logPrefix + "Renaming obj- list");
 		matchingFiles = findFilesByName(pathToSource, "Kbuild");
 		for (File file : matchingFiles) {
 			Path path = Paths.get(file.getPath());
@@ -87,15 +100,25 @@ public class PrepareBusybox implements IPreparation {
 				content = content.replace("lib-", "obj-");
 				Files.write(path, content.getBytes(charset));
 			} catch (IOException exc) {
-				Logger.get().logWarning(exc.getMessage());
-				exc.printStackTrace();
+                throw new SetUpException("Can't write or read file " + file, exc);
 			}
 		}
-		Logger.get().logDebug(logPrefix + "Making Makefile with dummy targets");
-		makeDummyMakefile(pathToSource);
-		Logger.get().logDebug(logPrefix + "Normalizing sourcecode");
-		normalizeDir(pathToSource);
-		Logger.get().logDebug(logPrefix + "Done.");
+		
+		LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
+		try {
+            makeDummyMakefile(pathToSource);
+        } catch (IOException e) {
+            throw new SetUpException("Can't write Makefile", e);
+        }
+		
+		LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
+		try {
+            normalizeDir(pathToSource);
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't normalize file contents", e);
+        }
+		
+		LOGGER.logDebug(logPrefix + "Done");
 	}
 
 	/**
@@ -104,17 +127,10 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to source
 	 */
-	private void makeDummyMakefile(File pathToSource) {
-		PrintWriter writer;
-		try {
-			writer = new PrintWriter(new File(pathToSource, "Makefile"));
-			writer.print("allyesconfig:\nprepare:");
-			writer.close();
-		} catch (FileNotFoundException exc) {
-			Logger.get().logWarning(exc.getMessage());
-
-			exc.printStackTrace();
-		}
+	private void makeDummyMakefile(File pathToSource) throws IOException {
+	    try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
+	        writer.print("allyesconfig:\nprepare:");
+	    }
 	}
 
 	/**
@@ -123,17 +139,12 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to the source tree
 	 */
-	private void executeMakePrepareAllyesconfigPrepare(File pathToSource) {
+	private void executeMakePrepareAllyesconfigPrepare(File pathToSource) throws IOException {
 		ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
 		processBuilder.directory(pathToSource);
-		boolean ret = false;
-		try {
-			ret = Util.executeProcess(processBuilder, "make");
-		} catch (IOException exc) {
-			Logger.get().logWarning(exc.getMessage());
-			exc.printStackTrace();
-		} finally {
-			System.out.println("success: " + ret);
+		boolean success = Util.executeProcess(processBuilder, "make");
+		if (!success) {
+		    throw new IOException("make returned failure");
 		}
 	}
 
@@ -143,15 +154,13 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to source tree
 	 */
-	private void copyOriginal(File pathToSource) {
+	private void copyOriginal(File pathToSource) throws IOException {
 		File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
-		try {
-		    cpDir.mkdir();
-		    Util.copyFolder(pathToSource, cpDir);
-		} catch (IOException exc) {
-			Logger.get().logWarning(exc.getMessage());
-			exc.printStackTrace();
+		if (cpDir.exists()) {
+		    throw new IOException("Copy directory already exists");
 		}
+	    cpDir.mkdir();
+	    Util.copyFolder(pathToSource, cpDir);
 	}
 
 	/**
@@ -173,7 +182,7 @@ public class PrepareBusybox implements IPreparation {
 	 * @param dir
 	 *            the dir to normalize
 	 */
-	private static void normalizeDir(File dir) {
+	private static void normalizeDir(File dir) throws IOException {
 
 		File[] files = dir.listFiles();
 		if (files != null) {
@@ -193,57 +202,30 @@ public class PrepareBusybox implements IPreparation {
 	 * @param file
 	 *            the file to normalize
 	 */
-	private static void normalizeFile(File file) {
+	private static void normalizeFile(File file) throws IOException {
 		File tempFile;
 		FileOutputStream fos = null;
 		if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
 			return;
 
 		List<String> inputFile = new ArrayList<String>();
-		try (BufferedReader br = new BufferedReader(
-				new InputStreamReader(new FileInputStream(file.getPath()), "utf-8"))) {
+		try (BufferedReader br = new BufferedReader(new InputStreamReader(
+		        new FileInputStream(file.getPath()), "utf-8"))) {
 			for (String line; (line = br.readLine()) != null;) {
 				inputFile.add(line);
 			}
 			file.delete();
 			tempFile = file;
 			fos = new FileOutputStream(tempFile);
-		} catch (IOException exc) {
-			Logger.get().logWarning(exc.getMessage());
-			exc.printStackTrace();
 		}
-		BufferedWriter bwr = new BufferedWriter(new OutputStreamWriter(fos));
+		
 		inputFile = substituteLineContinuation(inputFile);
-
-		for (String line : inputFile) {
-			addToTemp(bwr, normalizeLine(line));
-		}
-
-		try {
-			bwr.close();
-		} catch (IOException eexc) {
-			Logger.get().logWarning(eexc.getMessage());
-			eexc.printStackTrace();
-		}
-	}
-
-	/**
-	 * Writes the input string in the bufferedwriter and adds a new line.
-	 *
-	 * @param bw
-	 *            the buffered writer
-	 * @param normalizedLine
-	 *            the line to write
-	 */
-	private static void addToTemp(BufferedWriter bw, String normalizedLine) {
-
-		try {
-
-			bw.write(normalizedLine);
-			bw.newLine();
-		} catch (IOException exc) {
-			Logger.get().logWarning(exc.getMessage());
-			exc.printStackTrace();
+		
+		try (BufferedWriter bwr = new BufferedWriter(new OutputStreamWriter(fos))) {
+		    for (String line : inputFile) {
+		        bwr.write(normalizeLine(line));
+		        bwr.write('\n');
+		    }
 		}
 	}
 
@@ -312,44 +294,38 @@ public class PrepareBusybox implements IPreparation {
 		String variable = "";
 		String init = "";
 		String toRet = "";
-		try {
-			if (temp.contains("(") && temp.contains(")")) {
-				int indexOpening = temp.indexOf("(", temp.indexOf("IF_"));
-				int indexClosing = temp.length() - 1;
+		
+		if (temp.contains("(") && temp.contains(")")) {
+			int indexOpening = temp.indexOf("(", temp.indexOf("IF_"));
+			int indexClosing = temp.length() - 1;
 
-				int openingCount = 0;
+			int openingCount = 0;
 
-				char[] chars = temp.toCharArray();
+			char[] chars = temp.toCharArray();
 
-				for (int i = indexOpening + 1; i < chars.length; i++) {
-					if (chars[i] == '(') {
-						openingCount++;
-					} else if (chars[i] == ')') {
-						if (openingCount == 0) {
-							indexClosing = i;
-							break;
-						}
-						openingCount--;
+			for (int i = indexOpening + 1; i < chars.length; i++) {
+				if (chars[i] == '(') {
+					openingCount++;
+				} else if (chars[i] == ')') {
+					if (openingCount == 0) {
+						indexClosing = i;
+						break;
 					}
+					openingCount--;
 				}
-
-				variable = temp.substring(indexOpening, indexClosing);
-				init = "\n" + temp.substring(indexClosing + 1);
-
-				temp = temp.substring(0, indexOpening);
-			}
-			if (temp.contains("IF_NOT_")) {
-				temp = temp.replace("IF_NOT_", "\n#if !defined CONFIG_");
-			} else if (temp.contains("IF_")) {
-				temp = temp.replace("IF_", "\n#if defined CONFIG_");
 			}
 
+			variable = temp.substring(indexOpening, indexClosing);
+			init = "\n" + temp.substring(indexClosing + 1);
+
+			temp = temp.substring(0, indexOpening);
+		}
+		if (temp.contains("IF_NOT_")) {
+			temp = temp.replace("IF_NOT_", "\n#if !defined CONFIG_");
+		} else if (temp.contains("IF_")) {
+			temp = temp.replace("IF_", "\n#if defined CONFIG_");
 		}
 
-		catch (Exception exc) {
-			exc.printStackTrace();
-			Logger.get().logWarning(exc.getMessage());
-		}
 		toRet = temp + "\n";
 		if (variable.length() != 0)
 			toRet += variable.substring(1);
