@@ -1,5 +1,7 @@
 package net.ssehub.kernel_haven.busyboot;
 
+import static net.ssehub.kernel_haven.util.null_checks.NullHelpers.notNull;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -54,7 +56,7 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathSource
 	 *            the path to the sourcetree
 	 */
-	private void run(File pathToSource) throws SetUpException {
+	private void run(@NonNull File pathToSource) throws SetUpException {
 		String logPrefix = "Busybox Preparation: ";
 		
 		LOGGER.logDebug(logPrefix + "Copy Source Tree");
@@ -112,7 +114,7 @@ public class PrepareBusybox implements IPreparation {
      * @param pathToSource
      *            the path to source tree
      */
-    private void copyOriginal(File pathToSource) throws IOException {
+    private void copyOriginal(@NonNull File pathToSource) throws IOException {
         File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
         if (cpDir.exists()) {
             throw new IOException("Copy directory already exists");
@@ -127,7 +129,7 @@ public class PrepareBusybox implements IPreparation {
      * @param pathToSource
      *            the path to the source tree
      */
-    private void executeMakePrepareAllyesconfigPrepare(File pathToSource) throws IOException {
+    private void executeMakePrepareAllyesconfigPrepare(@NonNull File pathToSource) throws IOException {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
         processBuilder.directory(pathToSource);
         
@@ -152,7 +154,9 @@ public class PrepareBusybox implements IPreparation {
      * 
      * @throws IOException If reading or writing the file(s) fails.
      */
-    private static void replaceInFile(File source, File target, String from, String to) throws IOException {
+    private static void replaceInFile(@NonNull File source, @NonNull File target,
+            @NonNull String from, @NonNull String to) throws IOException {
+        
         String content;
         try (FileInputStream in = new FileInputStream(source)) {
             content = Util.readStream(in);
@@ -172,7 +176,7 @@ public class PrepareBusybox implements IPreparation {
      * @param pathToSource
      *            the path to source
      */
-    private void makeDummyMakefile(File pathToSource) throws IOException {
+    private void makeDummyMakefile(@NonNull File pathToSource) throws IOException {
         try (PrintWriter writer = new PrintWriter(new File(pathToSource, "Makefile"))) {
             writer.print("allyesconfig:\n\nprepare:\n");
         }
@@ -185,15 +189,15 @@ public class PrepareBusybox implements IPreparation {
      * @param dir
      *            the dir to normalize
      */
-    private static void normalizeDir(File dir) throws IOException {
+    private static void normalizeDir(@NonNull File dir) throws IOException {
 
         File[] files = dir.listFiles();
         if (files != null) {
-            for (int i = 0; i < files.length; i++) {
-                if (files[i].isDirectory()) {
-                    normalizeDir(files[i]);
-                } else if (files[i].getName().endsWith(".h") || files[i].getName().endsWith(".c")) {
-                    normalizeFile(files[i]);
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    normalizeDir(file);
+                } else if (file.getName().endsWith(".h") || file.getName().endsWith(".c")) {
+                    normalizeFile(file);
                 }
             }
         }
@@ -205,13 +209,13 @@ public class PrepareBusybox implements IPreparation {
      * @param file
      *            the file to normalize
      */
-    private static void normalizeFile(File file) throws IOException {
+    private static void normalizeFile(@NonNull File file) throws IOException {
         File tempFile;
         FileOutputStream fos = null;
         if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
             return;
 
-        List<String> inputFile = new ArrayList<String>();
+        List<@NonNull String> inputFile = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(
                 new FileInputStream(file.getPath()), StandardCharsets.UTF_8))) {
             for (String line; (line = br.readLine()) != null;) {
@@ -239,13 +243,13 @@ public class PrepareBusybox implements IPreparation {
      *            the input file as a list of lines
      * @return the list of lines with substituted line continuation
      */
-    private static List<String> substituteLineContinuation(List<String> inputFile) {
+    private static @NonNull List<@NonNull String> substituteLineContinuation(@NonNull List<@NonNull String> inputFile) {
         int start = -1;
         int end = -1;
-        List<String> toReturn = new ArrayList<>();
+        List<@NonNull String> toReturn = new ArrayList<>();
 
         for (int i = 0; i < inputFile.size(); i++) {
-            if (inputFile.get(i).endsWith(" \\")) {
+            if (notNull(inputFile.get(i)).endsWith(" \\")) {
                 if (start == -1) {
                     start = i;
                 }
@@ -259,7 +263,7 @@ public class PrepareBusybox implements IPreparation {
                 for (int j = start; j <= end; j++) {
                     toAdd += inputFile.get(j);
                 }
-                toAdd = toAdd.replace("\\", "");
+                toAdd = notNull(toAdd.replace("\\", ""));
                 toReturn.add(toAdd);
                 start = -1;
                 end = -1;
@@ -281,7 +285,7 @@ public class PrepareBusybox implements IPreparation {
      * 
      * @return the normalized line
      */
-    private static String normalizeLine(String line) {
+    private static @NonNull String normalizeLine(@NonNull String line) {
         int index;
         String temp;
         if (line.length() == 0)
@@ -293,7 +297,7 @@ public class PrepareBusybox implements IPreparation {
         // don't normalize comments
         if (line.contains("//")) {
             index = line.indexOf("//");
-            return normalizeLine(line.substring(0, index)) + line.substring(index);
+            return normalizeLine(notNull(line.substring(0, index))) + line.substring(index);
         }
         if (line.contains("/*") || line.contains("*/") || line.replace("\\t", " ").trim().startsWith("*")) {
             // lines that start with or are block comments
@@ -304,11 +308,11 @@ public class PrepareBusybox implements IPreparation {
 
                 } else {
                     return line.substring(0, line.indexOf("*/") + 2)
-                            + normalizeLine(line.substring(line.indexOf("*/") + 2));
+                            + normalizeLine(notNull(line.substring(line.indexOf("*/") + 2)));
                 }
 
             } else if (line.contains("/*")) {
-                return normalizeLine(line.substring(0, line.indexOf("/*")))
+                return normalizeLine(notNull(line.substring(0, line.indexOf("/*"))))
                         + line.substring(line.indexOf("/*"));
 
             }
@@ -332,7 +336,7 @@ public class PrepareBusybox implements IPreparation {
      *            the line
      * @return true, if successful
      */
-    private static boolean doNotNormalizeDefUndef(String line) {
+    private static boolean doNotNormalizeDefUndef(@NonNull String line) {
         boolean toRet = false;
         if (line.contains("#undef") || line.contains("#define") || line.contains("# define")
                 || line.contains("# undef"))
@@ -347,8 +351,8 @@ public class PrepareBusybox implements IPreparation {
      *            the line to normalize
      * @return the normalized line
      */
-    private static String normalizeDefinedEnableMacro(String line) {
-        return line.replace("defined ENABLE_", "defined CONFIG_");
+    private static @NonNull String normalizeDefinedEnableMacro(@NonNull String line) {
+        return notNull(line.replace("defined ENABLE_", "defined CONFIG_"));
     }
 
     /**
@@ -358,24 +362,24 @@ public class PrepareBusybox implements IPreparation {
      *            the string to normalize
      * @return the normalized string
      */
-    private static String normalizeEnableMacro(String temp) {
+    private static @NonNull String normalizeEnableMacro(@NonNull String temp) {
         if (temp.contains("if ENABLE_")) {
-            temp = temp.replace("if ENABLE_", "if defined CONFIG_");
+            temp = notNull(temp.replace("if ENABLE_", "if defined CONFIG_"));
         }
         if (temp.contains("if !ENABLE_")) {
-            temp = temp.replace("if !ENABLE_", "if !defined CONFIG_");
+            temp = notNull(temp.replace("if !ENABLE_", "if !defined CONFIG_"));
         }
         if (temp.contains("|| ENABLE_")) {
-            temp = temp.replace("ENABLE_", "defined CONFIG_");
+            temp = notNull(temp.replace("ENABLE_", "defined CONFIG_"));
         }
         if (temp.contains("&& ENABLE_")) {
-            temp = temp.replace("ENABLE_", "'defined CONFIG_");
+            temp = notNull(temp.replace("ENABLE_", "'defined CONFIG_"));
         }
         if (temp.contains("|| !ENABLE_")) {
-            temp = temp.replace("!ENABLE_", "!defined CONFIG_");
+            temp = notNull(temp.replace("!ENABLE_", "!defined CONFIG_"));
         }
         if (temp.contains("&& !ENABLE_")) {
-            temp = temp.replace("!ENABLE_", "'!defined CONFIG_");
+            temp = notNull(temp.replace("!ENABLE_", "'!defined CONFIG_"));
         }
 
         return temp;
@@ -388,12 +392,12 @@ public class PrepareBusybox implements IPreparation {
      *            the string to normalize
      * @return the normalized string
      */
-    private static String normalizeEnableInline(String temp) {
+    private static @NonNull String normalizeEnableInline(@NonNull String temp) {
 
         if (temp.contains("_ENABLE_") || temp.contains("#if"))
             return temp;
         if (temp.contains("ENABLE_")) {
-            temp = temp.replace("ENABLE_", "\n#if defined CONFIG_");
+            temp = notNull(temp.replace("ENABLE_", "\n#if defined CONFIG_"));
             StringBuilder strB = new StringBuilder(temp);
             if (temp.contains("if (\n#if defined CONFIG_")) {
                 try {
@@ -406,7 +410,7 @@ public class PrepareBusybox implements IPreparation {
                     }
 
                 }
-                temp = strB.toString();
+                temp = notNull(strB.toString());
                 return temp;
             }
 
@@ -425,7 +429,7 @@ public class PrepareBusybox implements IPreparation {
                 strB.append("\n1\n#else\n0\n#endif\n");
 
             }
-            temp = strB.toString();
+            temp = notNull(strB.toString());
         }
         return temp;
     }
@@ -438,7 +442,7 @@ public class PrepareBusybox implements IPreparation {
      * 
      * @return the string
      */
-    private static String normalizeIf(String temp) {
+    private static @NonNull String normalizeIf(@NonNull String temp) {
         if (!temp.contains("IF_"))
             return temp;
         String variable = "";
@@ -468,12 +472,12 @@ public class PrepareBusybox implements IPreparation {
             variable = temp.substring(indexOpening, indexClosing);
             init = "\n" + temp.substring(indexClosing + 1);
 
-            temp = temp.substring(0, indexOpening);
+            temp = notNull(temp.substring(0, indexOpening));
         }
         if (temp.contains("IF_NOT_")) {
-            temp = temp.replace("IF_NOT_", "\n#if !defined CONFIG_");
+            temp = notNull(temp.replace("IF_NOT_", "\n#if !defined CONFIG_"));
         } else if (temp.contains("IF_")) {
-            temp = temp.replace("IF_", "\n#if defined CONFIG_");
+            temp = notNull(temp.replace("IF_", "\n#if defined CONFIG_"));
         }
 
         toRet = temp + "\n";
@@ -491,8 +495,8 @@ public class PrepareBusybox implements IPreparation {
 	 * 
 	 * @return A list of all files that have the given filename.
 	 */
-	private static List<File> findFilesByName(File directory, String filename) {
-	    List<File> matchingFiles = new ArrayList<File>();
+	private static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
+	    List<@NonNull File> matchingFiles = new ArrayList<>();
 	    if (directory.isDirectory()) {
 	        findFilesHelper(directory, filename, matchingFiles);
 	    }
@@ -507,7 +511,9 @@ public class PrepareBusybox implements IPreparation {
 	 * @param filename The filename to search for.
 	 * @param result The list to add the matching files to.
 	 */
-	private static void findFilesHelper(File directory, String filename, List<File> result) {
+	private static void findFilesHelper(@NonNull File directory, @NonNull String filename,
+	        @NonNull List<@NonNull File> result) {
+	    
 		// get all the files from a directory
 		File[] fList = directory.listFiles();
 		for (File file : fList) {
