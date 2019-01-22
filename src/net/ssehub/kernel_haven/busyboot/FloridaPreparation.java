@@ -1,5 +1,8 @@
 package net.ssehub.kernel_haven.busyboot;
 
+import static net.ssehub.kernel_haven.util.null_checks.NullHelpers.maybeNull;
+import static net.ssehub.kernel_haven.util.null_checks.NullHelpers.notNull;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
@@ -15,6 +18,7 @@ import java.util.regex.Pattern;
 import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.PipelineConfigurator;
 import net.ssehub.kernel_haven.SetUpException;
+import net.ssehub.kernel_haven.code_model.CodeModelProvider;
 import net.ssehub.kernel_haven.config.Configuration;
 import net.ssehub.kernel_haven.config.DefaultSettings;
 import net.ssehub.kernel_haven.config.Setting;
@@ -40,13 +44,13 @@ public class FloridaPreparation implements IPreparation {
     private static final @NonNull Logger LOGGER = Logger.get();
     
     private static final @NonNull Pattern BEGIN_PATTERN
-            = Pattern.compile(Pattern.quote("begin[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
+        = notNull(Pattern.compile(Pattern.quote("begin[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE));
     
     private static final @NonNull Pattern END_PATTERN
-        = Pattern.compile(Pattern.quote("end[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
+        = notNull(Pattern.compile(Pattern.quote("end[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE));
     
     private static final @NonNull Pattern LINE_PATTERN
-        = Pattern.compile(Pattern.quote("Line[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE);
+        = notNull(Pattern.compile(Pattern.quote("Line[") + "(\\w+)" + Pattern.quote("]"), Pattern.CASE_INSENSITIVE));
     
     private File currentFile;
     
@@ -55,7 +59,7 @@ public class FloridaPreparation implements IPreparation {
     /**
      * The stack of features in //&begin[] and //&end[] blocks (//&Line[] is NOT considered).
      */
-    private Deque<String> featureStack;
+    private @NonNull Deque<@NonNull String> featureStack = new LinkedList<>();
     
     /**
      * If a //&Line[] directive is found, this is set to the feature that needs to be closed.
@@ -85,7 +89,10 @@ public class FloridaPreparation implements IPreparation {
         }
         
         config.setValue(DefaultSettings.SOURCE_TREE, copiedSourceTree);
-        PipelineConfigurator.instance().getCmProvider().setConfig(config);
+        CodeModelProvider cmProvider = PipelineConfigurator.instance().getCmProvider();
+        if (cmProvider != null) {
+            cmProvider.setConfig(config);
+        }
     }
     
     /**
@@ -103,7 +110,7 @@ public class FloridaPreparation implements IPreparation {
      * @throws IOException If reading or writing files fails.
      * @throws SetUpException If clearing the copy location fails.
      */
-    void prepare(File originalSourceTree, File copiedSourceTree)
+    void prepare(@NonNull File originalSourceTree, @NonNull File copiedSourceTree)
             throws IOException, SetUpException {
         
         LOGGER.logDebug("Starting preperation...");
@@ -117,7 +124,7 @@ public class FloridaPreparation implements IPreparation {
             throw e;
         }
         
-        this.featureStack = new LinkedList<>();
+        this.featureStack.clear();
         
         // copy the source_tree to destination, while replacing all FLOrIDA conditions
         LOGGER.logDebug("Copying from " + originalSourceTree.getAbsolutePath() + " to "
@@ -134,7 +141,7 @@ public class FloridaPreparation implements IPreparation {
      * 
      * @throws IOException If copying the file fails.
      */
-    private void copy(File from, File to) throws IOException {
+    private void copy(@NonNull File from, @NonNull File to) throws IOException {
         for (File f : from.listFiles()) {
             
             File newF = new File(to, f.getName());
@@ -180,10 +187,10 @@ public class FloridaPreparation implements IPreparation {
      * 
      * @param blockStructure The block structure to pop from.
      */
-    private void popBlock(Deque<CppBlock> blockStructure) {
+    private void popBlock(@NonNull Deque<@NonNull CppBlock> blockStructure) {
         if (!blockStructure.isEmpty()) {
             
-            CppBlock block = blockStructure.pop();
+            CppBlock block = notNull(blockStructure.pop());
             
             if (block.numOpeningFlorida != block.numClosingFlorida) {
                 LOGGER.logWarning("CppBlock in " + currentFile + " in line " + block.lineStart + " has "
@@ -200,8 +207,8 @@ public class FloridaPreparation implements IPreparation {
      * @param blockStructure The C preprocessor block structure.
      * @param floridaReplacement The FLOrIDA replacement line (i.e. C preprocessor).
      */
-    private void onFloridaBlock(Deque<CppBlock> blockStructure, String floridaReplacement) {
-        CppBlock block = blockStructure.peek();
+    private void onFloridaBlock(@NonNull Deque<@NonNull CppBlock> blockStructure, @NonNull String floridaReplacement) {
+        CppBlock block = maybeNull(blockStructure.peek());
         if (block != null) {
             if (floridaReplacement.startsWith("#if")) {
                 block.numOpeningFlorida++;
@@ -224,7 +231,7 @@ public class FloridaPreparation implements IPreparation {
      * 
      * @throws IOException If copying the file fails.
      */
-    private void copySourceFile(File from, File to) throws IOException {
+    private void copySourceFile(@NonNull File from, @NonNull File to) throws IOException {
         currentFile = from;
         
         try (LineNumberReader in = new LineNumberReader(new FileReader(from))) {
@@ -243,7 +250,7 @@ public class FloridaPreparation implements IPreparation {
                     String trimmed = line.trim();
                     
                     if (trimmed.startsWith("//&")) {
-                        line = getReplacement(trimmed.substring("//&".length()));
+                        line = getReplacement(notNull(trimmed.substring("//&".length())));
                         onFloridaBlock(blockStructure, line);
                         
                     } else if (trimmed.startsWith("#")) {
@@ -290,7 +297,7 @@ public class FloridaPreparation implements IPreparation {
      * 
      * @return A replacement line.
      */
-    private String getReplacement(String condition) {
+    private @NonNull String getReplacement(@NonNull String condition) {
         String result = "// Error replacing FLOrIDA condition: //&" + condition;
         
         Matcher ifMatcher = BEGIN_PATTERN.matcher(condition);
@@ -300,7 +307,7 @@ public class FloridaPreparation implements IPreparation {
         if (endMatcher.matches()) {
             String feature = endMatcher.group(1);
             if (!featureStack.isEmpty()) {
-                String expectedFeature = featureStack.pop();
+                String expectedFeature = notNull(featureStack.pop());
                 if (!feature.equals(expectedFeature)) {
                     LOGGER.logWarning("begin[] and end[] block features don't match in " + currentFile
                             + " in line " + currentLineNumber,
@@ -314,7 +321,7 @@ public class FloridaPreparation implements IPreparation {
             result = "#endif // " + feature;
             
         } else if (ifMatcher.matches()) {
-            String feature = ifMatcher.group(1);
+            String feature = notNull(ifMatcher.group(1));
             featureStack.push(feature);
             result = "#if defined(" + feature + ")";
             

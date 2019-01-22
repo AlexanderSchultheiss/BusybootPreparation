@@ -25,6 +25,7 @@ import net.ssehub.kernel_haven.util.Util;
  * 
  * @author Adam
  */
+@SuppressWarnings("null")
 public class FloridaPreparationTest {
     
     private static final File TESTDATA = new File("testdata/florida");
