@@ -67,7 +67,7 @@ public class PrepareBusybox implements IPreparation {
             throw new SetUpException("Couldn't copy source tree", e);
         }
 		
-		LOGGER.logDebug(logPrefix + "Execute make allyescongif prepare");
+		LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
 		try {
             executeMakePrepareAllyesconfigPrepare(pathToSource);
         } catch (IOException e) {
@@ -142,6 +142,7 @@ public class PrepareBusybox implements IPreparation {
 	private void executeMakePrepareAllyesconfigPrepare(File pathToSource) throws IOException {
 		ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
 		processBuilder.directory(pathToSource);
+		
 		boolean success = Util.executeProcess(processBuilder, "make");
 		if (!success) {
 		    throw new IOException("make returned failure");
