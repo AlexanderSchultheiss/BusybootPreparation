@@ -43,7 +43,7 @@ public class PrepareBusybox implements IPreparation {
 	 */
 	@Override
 	public void run(@NonNull Configuration config) throws SetUpException {
-		String pathToSource = config.getValue(DefaultSettings.SOURCE_TREE).getPath();
+		File pathToSource = config.getValue(DefaultSettings.SOURCE_TREE);
 		Logger.get().logInfo("Starting PrepareBusybox for " + pathToSource);
 		run(pathToSource);
 
@@ -55,15 +55,14 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathSource
 	 *            the path to the sourcetree
 	 */
-	private void run(String pathSource) {
-		String pathToSource = pathSource;
+	private void run(File pathToSource) {
 		String logPrefix = "Busybox Preparation: ";
 		Logger.get().logDebug(logPrefix + "Copy Source Tree");
 		copyOriginal(pathToSource);
 		Logger.get().logDebug(logPrefix + "Execute make allyescongif prepare");
 		executeMakePrepareAllyesconfigPrepare(pathToSource);
 		Logger.get().logDebug(logPrefix + "Renaming Conig.in to Kconfig");
-		ArrayList<File> matchingFiles = findFilesByName(new File(pathToSource), "Config.in");
+		ArrayList<File> matchingFiles = findFilesByName(pathToSource, "Config.in");
 		for (File file : matchingFiles) {
 			Path path = Paths.get(file.getPath());
 			Charset charset = StandardCharsets.UTF_8;
@@ -79,7 +78,7 @@ public class PrepareBusybox implements IPreparation {
 			file.renameTo(new File(file.getAbsolutePath().replace("Config.in", "Kconfig")));
 		}
 		Logger.get().logDebug(logPrefix + "Renaming obj- list");
-		matchingFiles = findFilesByName(new File(pathToSource), "Kbuild");
+		matchingFiles = findFilesByName(pathToSource, "Kbuild");
 		for (File file : matchingFiles) {
 			Path path = Paths.get(file.getPath());
 			Charset charset = StandardCharsets.UTF_8;
@@ -95,7 +94,7 @@ public class PrepareBusybox implements IPreparation {
 		Logger.get().logDebug(logPrefix + "Making Makefile with dummy targets");
 		makeDummyMakefile(pathToSource);
 		Logger.get().logDebug(logPrefix + "Normalizing sourcecode");
-		normalizeDir(new File(pathToSource));
+		normalizeDir(pathToSource);
 		Logger.get().logDebug(logPrefix + "Done.");
 	}
 
@@ -105,10 +104,10 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to source
 	 */
-	private void makeDummyMakefile(String pathToSource) {
+	private void makeDummyMakefile(File pathToSource) {
 		PrintWriter writer;
 		try {
-			writer = new PrintWriter(pathToSource + File.separatorChar + "Makefile");
+			writer = new PrintWriter(new File(pathToSource, "Makefile"));
 			writer.print("allyesconfig:\nprepare:");
 			writer.close();
 		} catch (FileNotFoundException exc) {
@@ -124,9 +123,9 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to the source tree
 	 */
-	private void executeMakePrepareAllyesconfigPrepare(String pathToSource) {
+	private void executeMakePrepareAllyesconfigPrepare(File pathToSource) {
 		ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
-		processBuilder.directory(new File(pathToSource));
+		processBuilder.directory(pathToSource);
 		boolean ret = false;
 		try {
 			ret = Util.executeProcess(processBuilder, "make");
@@ -144,12 +143,11 @@ public class PrepareBusybox implements IPreparation {
 	 * @param pathToSource
 	 *            the path to source tree
 	 */
-	private void copyOriginal(String pathToSource) {
-		File srcDir = new File(pathToSource);
-		File cpDir = new File(pathToSource + "UnchangedCopy");
+	private void copyOriginal(File pathToSource) {
+		File cpDir = new File(pathToSource.getParentFile(), pathToSource.getName() + "UnchangedCopy");
 		try {
 		    cpDir.mkdir();
-		    Util.copyFolder(srcDir, cpDir);
+		    Util.copyFolder(pathToSource, cpDir);
 		} catch (IOException exc) {
 			Logger.get().logWarning(exc.getMessage());
 			exc.printStackTrace();
@@ -196,12 +194,9 @@ public class PrepareBusybox implements IPreparation {
 	 *            the file to normalize
 	 */
 	private static void normalizeFile(File file) {
-		String path = file.getAbsolutePath();
-		String currentFile = path;
 		File tempFile;
 		FileOutputStream fos = null;
-		if (path.substring(path.lastIndexOf(File.separatorChar)).contains("unicode")
-				|| path.substring(path.lastIndexOf(File.separatorChar)).contains(".fnt"))
+		if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
 			return;
 
 		List<String> inputFile = new ArrayList<String>();
@@ -211,7 +206,7 @@ public class PrepareBusybox implements IPreparation {
 				inputFile.add(line);
 			}
 			file.delete();
-			tempFile = new File(path);
+			tempFile = file;
 			fos = new FileOutputStream(tempFile);
 		} catch (IOException exc) {
 			Logger.get().logWarning(exc.getMessage());
@@ -221,7 +216,7 @@ public class PrepareBusybox implements IPreparation {
 		inputFile = substituteLineContinuation(inputFile);
 
 		for (String line : inputFile) {
-			addToTemp(bwr, normalizeLine(line, currentFile));
+			addToTemp(bwr, normalizeLine(line));
 		}
 
 		try {
@@ -257,11 +252,10 @@ public class PrepareBusybox implements IPreparation {
 	 *
 	 * @param line
 	 *            the line to normalize
-	 * @param currentFile
-	 *            the current file
+	 * 
 	 * @return the normalized line
 	 */
-	private static String normalizeLine(String line, String currentFile) {
+	private static String normalizeLine(String line) {
 		int index;
 		String temp;
 		if (line.length() == 0)
@@ -273,7 +267,7 @@ public class PrepareBusybox implements IPreparation {
 		// don't normalize comments
 		if (line.contains("//")) {
 			index = line.indexOf("//");
-			return normalizeLine(line.substring(0, index), currentFile) + line.substring(index);
+			return normalizeLine(line.substring(0, index)) + line.substring(index);
 		}
 		if (line.contains("/*") || line.contains("*/") || line.replace("\\t", " ").trim().startsWith("*")) {
 			// lines that start with or are block comments
@@ -284,11 +278,11 @@ public class PrepareBusybox implements IPreparation {
 
 				} else {
 					return line.substring(0, line.indexOf("*/") + 2)
-							+ normalizeLine(line.substring(line.indexOf("*/") + 2), currentFile);
+							+ normalizeLine(line.substring(line.indexOf("*/") + 2));
 				}
 
 			} else if (line.contains("/*")) {
-				return normalizeLine(line.substring(0, line.indexOf("/*")), currentFile)
+				return normalizeLine(line.substring(0, line.indexOf("/*")))
 						+ line.substring(line.indexOf("/*"));
 
 			}
@@ -300,7 +294,7 @@ public class PrepareBusybox implements IPreparation {
 		temp = normalizeDefinedEnableMacro(line);
 		temp = normalizeEnableMacro(temp);
 		temp = normalizeEnableInline(temp);
-		temp = normalizeIf(temp, currentFile);
+		temp = normalizeIf(temp);
 		return temp;
 	}
 
@@ -309,11 +303,10 @@ public class PrepareBusybox implements IPreparation {
 	 *
 	 * @param temp
 	 *            the temp
-	 * @param currentFile
-	 *            the current file
+	 * 
 	 * @return the string
 	 */
-	private static String normalizeIf(String temp, String currentFile) {
+	private static String normalizeIf(String temp) {
 		if (!temp.contains("IF_"))
 			return temp;
 		String variable = "";
