@@ -16,7 +16,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import net.ssehub.kernel_haven.SetUpException;
-import net.ssehub.kernel_haven.busyboot.FloridaPreparation;
 import net.ssehub.kernel_haven.util.Logger;
 import net.ssehub.kernel_haven.util.Util;
 
@@ -439,7 +438,7 @@ public class FloridaPreparationTest {
     }
     
     /**
-     * Tests that the following invalid combination is handled gracefully:
+     * Tests that the following invalid combination is handled gracefully.
      * 
      * <code><pre>
      * //&Line[feature]

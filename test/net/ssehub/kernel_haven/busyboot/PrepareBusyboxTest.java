@@ -28,11 +28,21 @@ public class PrepareBusyboxTest {
     
     private static final @NonNull File TMP_DIR = new File(TESTDATA, "tmp");
     
+    /**
+     * Cleans (or creates) the temporary directory before each test.
+     * 
+     * @throws IOException If cleaning the directory fails.
+     */
     @Before
     public void createOrClearTmpDir() throws IOException {
         Util.clearFolder(TMP_DIR);
     }
 
+    /**
+     * Tests the {@link PrepareBusybox#copyOriginal()} method.
+     * 
+     * @throws IOException unwanted.
+     */
     @Test
     public void testCopyOriginal() throws IOException {
         File expectedDir = new File(TESTDATA, "tmpUnchangedCopy");
@@ -70,6 +80,12 @@ public class PrepareBusyboxTest {
         }
     }
     
+    /**
+     * Tests that the {@link PrepareBusybox#copyOriginal()} method correctly throws an exception if the target already
+     * exists.
+     * 
+     * @throws IOException wanted.
+     */
     @Test(expected = IOException.class)
     public void testCopyOriginalAlreadyExisting() throws IOException {
         File existing = new File(TESTDATA, "tmpUnchangedCopy");
@@ -93,6 +109,11 @@ public class PrepareBusyboxTest {
         }
     }
     
+    /**
+     * Tests the {@link PrepareBusybox#replaceInFile(File, File, String, String)} method.
+     * 
+     * @throws IOException unwanted.
+     */
     @Test
     public void replaceInFile() throws IOException {
         String originalContent = "Hello World!\n";
@@ -123,6 +144,12 @@ public class PrepareBusyboxTest {
         }
     }
     
+    /**
+     * Tests the {@link PrepareBusybox#replaceInFile(File, File, String, String)} method with the same input and output
+     * file.
+     * 
+     * @throws IOException unwanted.
+     */
     @Test
     public void replaceInSameFile() throws IOException {
         String originalContent = "Hello World!\n";
@@ -149,6 +176,11 @@ public class PrepareBusyboxTest {
         }
     }
     
+    /**
+     * Tests the {@link PrepareBusybox#makeDummyMakefile()} method.
+     * 
+     * @throws IOException unwanted.
+     */
     @Test
     public void testMakeDummyMakefile() throws IOException {
         // set up
@@ -171,6 +203,9 @@ public class PrepareBusyboxTest {
         }
     }
     
+    /**
+     * Tests the {@link PrepareBusybox#findFilesByName(File, String)} method.
+     */
     @Test
     public void testFindFilesByName() {
         File directory = new File(TESTDATA, "find_files_by_name");
@@ -187,6 +222,9 @@ public class PrepareBusyboxTest {
         ))));
     }
     
+    /**
+     * Tests that the {@link PrepareBusybox#findFilesByName(File, String)} method does exact name matching.
+     */
     @Test
     public void testFindFilesByNameExactMatch() {
         File directory = new File(TESTDATA, "find_files_by_name");
@@ -204,6 +242,10 @@ public class PrepareBusyboxTest {
         ))));
     }
     
+    /**
+     * Tests that the {@link PrepareBusybox#findFilesByName(File, String)} method returns an empty list when a file
+     * is passed to it instead of a directory.
+     */
     @Test
     public void testFindFilesByNameNotADir() {
         File directory = new File(TESTDATA, "not_a_dir.txt");

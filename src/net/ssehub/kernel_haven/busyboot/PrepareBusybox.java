@@ -46,75 +46,79 @@ public class PrepareBusybox implements IPreparation {
         this.sourceTree = sourceTree;
     }
 
-	@Override
-	public void run(@NonNull Configuration config) throws SetUpException {
-		this.sourceTree = config.getValue(DefaultSettings.SOURCE_TREE);
-		LOGGER.logInfo("Starting PrepareBusybox for " + sourceTree);
-		runImpl();
-	}
+    @Override
+    public void run(@NonNull Configuration config) throws SetUpException {
+        this.sourceTree = config.getValue(DefaultSettings.SOURCE_TREE);
+        LOGGER.logInfo("Starting PrepareBusybox for " + sourceTree);
+        runImpl();
+    }
 
-	/**
-	 * The real run method, managing the manipulation of Busybox source tree.
-	 */
-	private void runImpl() throws SetUpException {
-		String logPrefix = "Busybox Preparation: ";
-		
-		LOGGER.logDebug(logPrefix + "Copy Source Tree");
-		try {
+    /**
+     * The real run method, managing the manipulation of Busybox source tree.
+     * 
+     * @throws SetUpException If the preperation fails.
+     */
+    private void runImpl() throws SetUpException {
+        String logPrefix = "Busybox Preparation: ";
+        
+        LOGGER.logDebug(logPrefix + "Copy Source Tree");
+        try {
             copyOriginal();
         } catch (IOException e) {
             throw new SetUpException("Couldn't copy source tree", e);
         }
-		
-		LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
-		try {
+        
+        LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
+        try {
             executeMakeAllyesconfigPrepare();
         } catch (IOException e) {
             throw new SetUpException("Couldn't execute 'make allyesconfig prepare'", e);
         }
-		
-		LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
-		try {
-		    for (File file : findFilesByName(sourceTree, "Config.in")) {
-		        replaceInFile(file, new File(file.getParentFile(), "Kconfig"), "Config.in", "Kconfig");
-		    }
-		} catch (IOException exc) {
+        
+        LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
+        try {
+            for (File file : findFilesByName(sourceTree, "Config.in")) {
+                replaceInFile(file, new File(file.getParentFile(), "Kconfig"), "Config.in", "Kconfig");
+            }
+        } catch (IOException exc) {
             throw new SetUpException("Couldn't replace in Config.in files", exc);
         }
-		
-		LOGGER.logDebug(logPrefix + "Renaming obj- list");
+        
+        LOGGER.logDebug(logPrefix + "Renaming obj- list");
         try {
-    		for (File file : findFilesByName(sourceTree, "Kbuild")) {
-    		    replaceInFile(file, file, "lib-", "obj-");
-    		}
+            for (File file : findFilesByName(sourceTree, "Kbuild")) {
+                replaceInFile(file, file, "lib-", "obj-");
+            }
         } catch (IOException exc) {
             throw new SetUpException("Couldn't replace in Kbuild files", exc);
         }
-		
-		LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
-		try {
+        
+        LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
+        try {
             makeDummyMakefile();
         } catch (IOException e) {
             throw new SetUpException("Couldn't write Makefile", e);
         }
-		
-		LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
-		try {
+        
+        LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
+        try {
             normalizeDir(sourceTree);
         } catch (IOException e) {
             throw new SetUpException("Couldn't normalize file contents", e);
         }
-		
-		LOGGER.logDebug(logPrefix + "Done");
-	}
-	
-	/**
-	 * <p>
+        
+        LOGGER.logDebug(logPrefix + "Done");
+    }
+    
+    /**
+     * <p>
      * Copies the source tree so that we keep an unmodified version.
      * </p>
      * <p>
      * Package visibility for test cases.
      * </p>
+     * 
+     * @throws IOException If copying the directory fails.
      */
     void copyOriginal() throws IOException {
         File cpDir = new File(sourceTree.getParentFile(), sourceTree.getName() + "UnchangedCopy");
@@ -127,6 +131,8 @@ public class PrepareBusybox implements IPreparation {
     
     /**
      * Executes 'make allyesconfig prepare' to prepare the busybox tree for analysis.
+     * 
+     * @throws IOException If execution of make fails.
      */
     private void executeMakeAllyesconfigPrepare() throws IOException {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
@@ -182,6 +188,8 @@ public class PrepareBusybox implements IPreparation {
      * <p>
      * Package visibility for test cases.
      * </p>
+     * 
+     * @throws IOException If writing the file fails.
      */
     void makeDummyMakefile() throws IOException {
         try (PrintWriter writer = new PrintWriter(new File(sourceTree, "Makefile"))) {
@@ -193,6 +201,8 @@ public class PrepareBusybox implements IPreparation {
      * Starting point for modifying the c preprocessor source files based on Manuel Zerpies Busyfix.
      *
      * @param dir The directory to normalize all source files in.
+     * 
+     * @throws IOException If writing the replaced files fails.
      */
     private static void normalizeDir(@NonNull File dir) throws IOException {
 
@@ -212,17 +222,21 @@ public class PrepareBusybox implements IPreparation {
      * Normalizes a single file in style of Busyfix.
      *
      * @param file The file to normalize.
+     * 
+     * @throws IOException If writing the replaced file fails.
      */
     private static void normalizeFile(@NonNull File file) throws IOException {
         File tempFile;
         FileOutputStream fos = null;
-        if (file.getName().contains("unicode") || file.getName().contains(".fnt"))
+        if (file.getName().contains("unicode") || file.getName().contains(".fnt")) {
             return;
+        }
 
         List<@NonNull String> inputFile = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new InputStreamReader(
                 new FileInputStream(file.getPath()), StandardCharsets.UTF_8))) {
-            for (String line; (line = br.readLine()) != null;) {
+            String line;
+            while ((line = br.readLine()) != null) {
                 inputFile.add(line);
             }
             file.delete();
@@ -291,11 +305,13 @@ public class PrepareBusybox implements IPreparation {
     private static @NonNull String normalizeLine(@NonNull String line) {
         int index;
         String temp;
-        if (line.length() == 0)
+        if (line.length() == 0) {
             return line;
+        }
 
-        if (doNotNormalizeDefUndef(line))
+        if (doNotNormalizeDefUndef(line)) {
             return line;
+        }
 
         // don't normalize comments
         if (line.contains("//")) {
@@ -322,8 +338,9 @@ public class PrepareBusybox implements IPreparation {
         }
         // malformed comments in scripts/basic/fixdep.c
         if (line.contains("if (!memcmp(p, \"IF_NOT\", 6)) goto conf7")
-                || line.contains("/*if (!memcmp(p, \"IF_\", 3)) ...*/"))
+                || line.contains("/*if (!memcmp(p, \"IF_\", 3)) ...*/")) {
             return line;
+        }
         temp = normalizeDefinedEnableMacro(line);
         temp = normalizeEnableMacro(temp);
         temp = normalizeEnableInline(temp);
@@ -341,8 +358,9 @@ public class PrepareBusybox implements IPreparation {
     private static boolean doNotNormalizeDefUndef(@NonNull String line) {
         boolean toRet = false;
         if (line.contains("#undef") || line.contains("#define") || line.contains("# define")
-                || line.contains("# undef"))
+                || line.contains("# undef")) {
             toRet = true;
+        }
         return toRet;
     }
 
@@ -396,8 +414,9 @@ public class PrepareBusybox implements IPreparation {
      */
     private static @NonNull String normalizeEnableInline(@NonNull String line) {
 
-        if (line.contains("_ENABLE_") || line.contains("#if"))
+        if (line.contains("_ENABLE_") || line.contains("#if")) {
             return line;
+        }
         if (line.contains("ENABLE_")) {
             line = notNull(line.replace("ENABLE_", "\n#if defined CONFIG_"));
             StringBuilder strB = new StringBuilder(line);
@@ -421,10 +440,12 @@ public class PrepareBusybox implements IPreparation {
             int indexOfComma = line.indexOf(",", line.indexOf("defined CONFIG_") + 10);
             int indexOfParenthesis = line.indexOf(")", line.indexOf("defined CONFIG_") + 10);
             int indexToInsert = indexOfWhitespace;
-            if (indexOfComma != -1 && (indexOfComma < indexToInsert || indexToInsert == -1))
+            if (indexOfComma != -1 && (indexOfComma < indexToInsert || indexToInsert == -1)) {
                 indexToInsert = indexOfComma;
-            if (indexOfParenthesis != -1 && (indexOfParenthesis < indexToInsert || indexToInsert == -1))
+            }
+            if (indexOfParenthesis != -1 && (indexOfParenthesis < indexToInsert || indexToInsert == -1)) {
                 indexToInsert = indexOfComma;
+            }
             if (indexToInsert != -1) {
                 strB.insert(indexToInsert, "\n1\n#else\n0\n#endif\n");
             } else {
@@ -444,8 +465,9 @@ public class PrepareBusybox implements IPreparation {
      * @return The normalized line.
      */
     private static @NonNull String normalizeIf(@NonNull String line) {
-        if (!line.contains("IF_"))
+        if (!line.contains("IF_")) {
             return line;
+        }
         String variable = "";
         String init = "";
         String toRet = "";
@@ -482,53 +504,54 @@ public class PrepareBusybox implements IPreparation {
         }
 
         toRet = line + "\n";
-        if (variable.length() != 0)
+        if (variable.length() != 0) {
             toRet += variable.substring(1);
+        }
         toRet += "\n#endif" + init;
         return toRet;
     }
 
-	/**
-	 * <p>
-	 * Finds all files in the given directory (recursively) that have exactly the given filename.
-	 * </p>
-	 * <p>
-	 * Package visibility for test cases.
-	 * </p>
-	 *
-	 * @param directory The directory to search in.
-	 * @param filename The filename to search for.
-	 * 
-	 * @return A list of all files that have the given filename.
-	 */
-	static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
-	    List<@NonNull File> matchingFiles = new ArrayList<>();
-	    if (directory.isDirectory()) {
-	        findFilesHelper(directory, filename, matchingFiles);
-	    }
-		return matchingFiles;
-	}
+    /**
+     * <p>
+     * Finds all files in the given directory (recursively) that have exactly the given filename.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
+     *
+     * @param directory The directory to search in.
+     * @param filename The filename to search for.
+     * 
+     * @return A list of all files that have the given filename.
+     */
+    static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
+        List<@NonNull File> matchingFiles = new ArrayList<>();
+        if (directory.isDirectory()) {
+            findFilesHelper(directory, filename, matchingFiles);
+        }
+        return matchingFiles;
+    }
 
-	/**
-	 * Helper method for {@link #findFilesByName(File, String)}. Recursively walks through the given directory and
-	 * all sub-directories and finds all files that have exactly the given filename.
-	 *
-	 * @param directory The directory to search in.
-	 * @param filename The filename to search for.
-	 * @param result The list to add the matching files to.
-	 */
-	private static void findFilesHelper(@NonNull File directory, @NonNull String filename,
-	        @NonNull List<@NonNull File> result) {
-	    
-		// get all the files from a directory
-		File[] fList = directory.listFiles();
-		for (File file : fList) {
-			if (file.isFile() && file.getName().equals(filename)) {
-				result.add(file);
-			} else if (file.isDirectory()) {
-				findFilesHelper(file, filename, result);
-			}
-		}
-	}
+    /**
+     * Helper method for {@link #findFilesByName(File, String)}. Recursively walks through the given directory and
+     * all sub-directories and finds all files that have exactly the given filename.
+     *
+     * @param directory The directory to search in.
+     * @param filename The filename to search for.
+     * @param result The list to add the matching files to.
+     */
+    private static void findFilesHelper(@NonNull File directory, @NonNull String filename,
+            @NonNull List<@NonNull File> result) {
+        
+        // get all the files from a directory
+        File[] fList = directory.listFiles();
+        for (File file : fList) {
+            if (file.isFile() && file.getName().equals(filename)) {
+                result.add(file);
+            } else if (file.isDirectory()) {
+                findFilesHelper(file, filename, result);
+            }
+        }
+    }
 
 }
