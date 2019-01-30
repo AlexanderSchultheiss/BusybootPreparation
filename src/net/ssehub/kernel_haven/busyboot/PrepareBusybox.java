@@ -159,19 +159,24 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
     }
     
     /**
+     * <p>
      * Substitutes line continuation in Busybox for easier transformation.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
      *
      * @param inputFile The input file as a list of lines.
      * 
      * @return The list of lines with substituted line continuation
      */
-    private static @NonNull List<@NonNull String> substituteLineContinuation(@NonNull List<@NonNull String> inputFile) {
+    static @NonNull List<@NonNull String> substituteLineContinuation(@NonNull List<@NonNull String> inputFile) {
         int start = -1;
         int end = -1;
-        List<@NonNull String> toReturn = new ArrayList<>();
+        List<@NonNull String> toReturn = new ArrayList<>(inputFile.size());
 
         for (int i = 0; i < inputFile.size(); i++) {
-            if (notNull(inputFile.get(i)).endsWith(" \\")) {
+            if (notNull(inputFile.get(i)).endsWith("\\")) {
                 if (start == -1) {
                     start = i;
                 }
@@ -180,12 +185,15 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
             } else {
                 end = i;
             }
-            if (end == i && start != -1 && end >= start) {
+            if (start != -1) {
                 String toAdd = "";
                 for (int j = start; j <= end; j++) {
-                    toAdd += inputFile.get(j);
+                    String line = notNull(inputFile.get(j));
+                    if (j != end) {
+                        line = line.substring(0, line.length() - 1); // remove trailing \
+                    }
+                    toAdd += line;
                 }
-                toAdd = notNull(toAdd.replace("\\", ""));
                 toReturn.add(toAdd);
                 start = -1;
                 end = -1;
@@ -194,6 +202,17 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
                 start = -1;
                 end = -1;
             }
+        }
+        
+        // we found a \ at the last line of the file
+        if (start != -1) {
+            String toAdd = "";
+            for (int j = start; j <= end; j++) {
+                String line = notNull(inputFile.get(j));
+                line = line.substring(0, line.length() - 1); // remove trailing \
+                toAdd += line;
+            }
+            toReturn.add(toAdd);
         }
 
         return toReturn;
