@@ -11,6 +11,7 @@ import org.junit.runners.Suite.SuiteClasses;
  */
 @RunWith(Suite.class)
 @SuiteClasses({
+    AbstractBusybootPreparationTest.class,
     FloridaPreparationTest.class,
     PrepareBusyboxTest.class,
     })

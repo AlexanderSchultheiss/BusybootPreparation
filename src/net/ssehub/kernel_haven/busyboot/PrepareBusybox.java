@@ -16,11 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.SetUpException;
-import net.ssehub.kernel_haven.config.Configuration;
-import net.ssehub.kernel_haven.config.DefaultSettings;
-import net.ssehub.kernel_haven.util.Logger;
 import net.ssehub.kernel_haven.util.Util;
 import net.ssehub.kernel_haven.util.null_checks.NonNull;
 
@@ -31,34 +27,10 @@ import net.ssehub.kernel_haven.util.null_checks.NonNull;
  * @author Kevin
  * @author Adam
  */
-public class PrepareBusybox implements IPreparation {
+public class PrepareBusybox extends AbstractBusybootPreparation {
     
-    private static final @NonNull Logger LOGGER = Logger.get();
-    
-    private @NonNull File sourceTree = new File(""); // will be initialized in run()
-    
-    /**
-     * Changes the sourceTree attribute. <b>Only to be used for test cases.</b>
-     * 
-     * @param sourceTree The new source tree.
-     */
-    void setSourceTree(@NonNull File sourceTree) {
-        this.sourceTree = sourceTree;
-    }
-
     @Override
-    public void run(@NonNull Configuration config) throws SetUpException {
-        this.sourceTree = config.getValue(DefaultSettings.SOURCE_TREE);
-        LOGGER.logInfo("Starting PrepareBusybox for " + sourceTree);
-        runImpl();
-    }
-
-    /**
-     * The real run method, managing the manipulation of Busybox source tree.
-     * 
-     * @throws SetUpException If the preperation fails.
-     */
-    private void runImpl() throws SetUpException {
+    protected void runImpl() throws SetUpException {
         String logPrefix = "Busybox Preparation: ";
         
         LOGGER.logDebug(logPrefix + "Copy Source Tree");
@@ -77,7 +49,7 @@ public class PrepareBusybox implements IPreparation {
         
         LOGGER.logDebug(logPrefix + "Renaming Conig.in to Kconfig");
         try {
-            for (File file : findFilesByName(sourceTree, "Config.in")) {
+            for (File file : findFilesByName(getSourceTree(), "Config.in")) {
                 replaceInFile(file, new File(file.getParentFile(), "Kconfig"), "Config.in", "Kconfig");
             }
         } catch (IOException exc) {
@@ -86,7 +58,7 @@ public class PrepareBusybox implements IPreparation {
         
         LOGGER.logDebug(logPrefix + "Renaming obj- list");
         try {
-            for (File file : findFilesByName(sourceTree, "Kbuild")) {
+            for (File file : findFilesByName(getSourceTree(), "Kbuild")) {
                 replaceInFile(file, file, "lib-", "obj-");
             }
         } catch (IOException exc) {
@@ -102,31 +74,12 @@ public class PrepareBusybox implements IPreparation {
         
         LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
         try {
-            normalizeDir(sourceTree);
+            normalizeDir(getSourceTree());
         } catch (IOException e) {
             throw new SetUpException("Couldn't normalize file contents", e);
         }
         
         LOGGER.logDebug(logPrefix + "Done");
-    }
-    
-    /**
-     * <p>
-     * Copies the source tree so that we keep an unmodified version.
-     * </p>
-     * <p>
-     * Package visibility for test cases.
-     * </p>
-     * 
-     * @throws IOException If copying the directory fails.
-     */
-    void copyOriginal() throws IOException {
-        File cpDir = new File(sourceTree.getParentFile(), sourceTree.getName() + "UnchangedCopy");
-        if (cpDir.exists()) {
-            throw new IOException("Copy directory already exists");
-        }
-        cpDir.mkdir();
-        Util.copyFolder(sourceTree, cpDir);
     }
     
     /**
@@ -136,7 +89,7 @@ public class PrepareBusybox implements IPreparation {
      */
     private void executeMakeAllyesconfigPrepare() throws IOException {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
-        processBuilder.directory(sourceTree);
+        processBuilder.directory(getSourceTree());
         
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
@@ -146,37 +99,6 @@ public class PrepareBusybox implements IPreparation {
             LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
                     "stderr:", stderr.toString());
             throw new IOException("make returned failure");
-        }
-    }
-    
-    /**
-     * <p>
-     * Reads the contents of source, does string-based replacements, and writes the result as target.
-     * </p>
-     * <p>
-     * Package visibility for test cases.
-     * </p>
-     * 
-     * @param source The source file to read the content from. This file will be delete after reading.
-     * @param target The target file to write the replaced content to. This may be the same as source.
-     * @param from The string to replace in the content.
-     * @param to The string to replace occurrences of <code>from</code> with.
-     * 
-     * @throws IOException If reading or writing the file(s) fails.
-     */
-    static void replaceInFile(@NonNull File source, @NonNull File target,
-            @NonNull String from, @NonNull String to) throws IOException {
-        
-        String content;
-        try (FileInputStream in = new FileInputStream(source)) {
-            content = Util.readStream(in);
-        }
-        source.delete();
-
-        content = content.replace(from, to);
-        
-        try (FileOutputStream out = new FileOutputStream(target)) {
-            out.write(content.getBytes(StandardCharsets.UTF_8));
         }
     }
     
@@ -192,7 +114,7 @@ public class PrepareBusybox implements IPreparation {
      * @throws IOException If writing the file fails.
      */
     void makeDummyMakefile() throws IOException {
-        try (PrintWriter writer = new PrintWriter(new File(sourceTree, "Makefile"))) {
+        try (PrintWriter writer = new PrintWriter(new File(getSourceTree(), "Makefile"))) {
             writer.print("allyesconfig:\n\nprepare:\n");
         }
     }
@@ -509,49 +431,6 @@ public class PrepareBusybox implements IPreparation {
         }
         toRet += "\n#endif" + init;
         return toRet;
-    }
-
-    /**
-     * <p>
-     * Finds all files in the given directory (recursively) that have exactly the given filename.
-     * </p>
-     * <p>
-     * Package visibility for test cases.
-     * </p>
-     *
-     * @param directory The directory to search in.
-     * @param filename The filename to search for.
-     * 
-     * @return A list of all files that have the given filename.
-     */
-    static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
-        List<@NonNull File> matchingFiles = new ArrayList<>();
-        if (directory.isDirectory()) {
-            findFilesHelper(directory, filename, matchingFiles);
-        }
-        return matchingFiles;
-    }
-
-    /**
-     * Helper method for {@link #findFilesByName(File, String)}. Recursively walks through the given directory and
-     * all sub-directories and finds all files that have exactly the given filename.
-     *
-     * @param directory The directory to search in.
-     * @param filename The filename to search for.
-     * @param result The list to add the matching files to.
-     */
-    private static void findFilesHelper(@NonNull File directory, @NonNull String filename,
-            @NonNull List<@NonNull File> result) {
-        
-        // get all the files from a directory
-        File[] fList = directory.listFiles();
-        for (File file : fList) {
-            if (file.isFile() && file.getName().equals(filename)) {
-                result.add(file);
-            } else if (file.isDirectory()) {
-                findFilesHelper(file, filename, result);
-            }
-        }
     }
 
 }
