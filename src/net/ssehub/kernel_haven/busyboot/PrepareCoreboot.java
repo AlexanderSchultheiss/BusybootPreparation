@@ -1,5 +1,6 @@
 package net.ssehub.kernel_haven.busyboot;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -32,8 +33,12 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
             throw new SetUpException("Couldn't copy source tree", e);
         }
         
-        LOGGER.logDebug(logPrefix + "Exeute make allyesconfig");
-        executeMakeAllyesconfig();
+        LOGGER.logDebug(logPrefix + "Execute make allyesconfig");
+        try {
+            executeMakeAllyesconfig();
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't execute 'make allyesconfig'", e);
+        }
         
         LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
         try {
@@ -44,97 +49,56 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
         
         LOGGER.logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
         List<File> matchingFiles = findFilesByName(getSourceTree(), "Makefile.inc");
-        for (File file : matchingFiles) {
-
-            Path path = Paths.get(file.getPath());
-            Charset charset = StandardCharsets.UTF_8;
-            try {
+        try {
+            for (File file : matchingFiles) {
+                
+                Path path = Paths.get(file.getPath());
+                Charset charset = StandardCharsets.UTF_8;
                 String content = new String(Files.readAllBytes(path), charset);
                 content = replaceStuff(content);
                 Files.write(path, content.getBytes(charset));
-            } catch (IOException exc) {
-                LOGGER.logWarning(exc.getMessage());
-                exc.printStackTrace();
+                
+                file.renameTo(new File(file.getAbsolutePath().replace("Makefile.inc", "Kbuild")));
             }
-
-            file.renameTo(new File(file.getAbsolutePath().replace("Makefile.inc", "Kbuild")));
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't replace in Makefiles", e);
         }
+        
         LOGGER.logDebug(logPrefix + "Copying Kconfig information");
-        collectKconfigInfos();
+        try {
+            collectKconfigInfos();
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't copy Kconfig information", e);
+        }
         
         LOGGER.logDebug(logPrefix + "initialize extern int");
         try {
             initializeExternInt();
         } catch (IOException e) {
-            throw new SetUpException("Can't replace in variable initialization", e);
+            throw new SetUpException("Couldn't replace in variable initialization", e);
         }
     }
-
+    
     /**
-     * <p>
-     * Initializes the var extern int kconfig_warnings.
-     * </p>
-     * <p>
-     * Package visibility for test cases.
-     * </p>
-     * <p>
-     * TODO AK: Check if this is actually correct:
-     * <ul>
-     *  <li>The correct path should be util/kconfig/lkc.h</li>
-     *  <li>Is this even needed?</li>
-     * </ul>
-     * </p>
-     *
-     * @param pathToSource
-     *            the path to source
+     * Executes 'make allyesconfig' to prepare the coreboot tree for analysis.
      * 
-     * @throws IOException If writing the replacements fails.
+     * @throws IOException If execution of make fails.
      */
-    void initializeExternInt() throws IOException {
-        File lkcH = new File(getSourceTree(), "scripts/kconfig/lkc.h");
+    private void executeMakeAllyesconfig() throws IOException {
+        ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig");
+        processBuilder.directory(getSourceTree().getParentFile());
         
-        replaceInFile(lkcH, lkcH, "extern int kconfig_warnings", "extern int kconfig_warnings = 0");
-    }
-
-    /**
-     * Collects the kconfig infos from build/util/kconfig and util/kconfig and
-     * pastes it at scripts/kconfig.
-     *
-     * @param pathToSource
-     *            the path to source
-     */
-    private void collectKconfigInfos() {
-        String pathToSource = getSourceTree().getPath();
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
         
-        try {
-            Runtime rt = Runtime.getRuntime();
-            rt.exec("mkdir " + pathToSource + File.separatorChar + "scripts");
-
-        } catch (IOException exc) {
-            LOGGER.logWarning(exc.getMessage());
-            exc.printStackTrace();
-        }
-
-        Path source0 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "util"
-                + File.separatorChar + "kconfig" + File.separatorChar);
-        Path source1 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "build"
-                + File.separatorChar + "util" + File.separatorChar + "kconfig");
-        Path destination = Paths.get(
-                pathToSource + File.separatorChar + "scripts" + File.separatorChar + "kconfig" + File.separatorChar);
-        try {
-            System.out.println(source0 + " = Source0");
-            System.out.println(source1 + " = Source0");
-            System.out.println(destination + " = dest");
-            
-            destination.toFile().mkdir();
-            Util.copyFolder(source0.toFile(), destination.toFile());
-            Util.copyFolder(source1.toFile(), destination.toFile());
-        } catch (IOException exc) {
-            LOGGER.logWarning(exc.getMessage());
-            exc.printStackTrace();
+        boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
+        if (!success) {
+            LOGGER.logError("Couldn't execute 'make allyesconfig'", "stdout:", stdout.toString(),
+                    "stderr:", stderr.toString());
+            throw new IOException("make returned failure");
         }
     }
-
+    
     /**
      * Replaces the Name of the Makefile.inc and the list of files to be compiled.
      *
@@ -156,23 +120,52 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
     }
 
     /**
-     * Execute make allyesconfig.
+     * Collects the kconfig infos from build/util/kconfig and util/kconfig and
+     * pastes it at scripts/kconfig.
      *
      * @param pathToSource
-     *            the path to source tree of coreboot
+     *            the path to source
+     *            
+     * @throws IOException If copying the folders fails.
      */
-    private void executeMakeAllyesconfig() {
-        ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig");
-        processBuilder.directory(new File(getSourceTree().getPath().replace("/src", "")));
-        boolean ret = false;
-        try {
-            ret = Util.executeProcess(processBuilder, "make");
-        } catch (IOException exc) {
-            LOGGER.logWarning(exc.getMessage());
-            exc.printStackTrace();
-        } finally {
-            System.out.println("success: " + ret);
-        }
+    private void collectKconfigInfos() throws IOException {
+        String pathToSource = getSourceTree().getPath();
+
+        File scriptsDir = new File(getSourceTree(), "scripts");
+        scriptsDir.mkdir();
+
+        Path source0 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "util"
+                + File.separatorChar + "kconfig" + File.separatorChar);
+        Path source1 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "build"
+                + File.separatorChar + "util" + File.separatorChar + "kconfig");
+        Path destination = Paths.get(
+                pathToSource + File.separatorChar + "scripts" + File.separatorChar + "kconfig" + File.separatorChar);
+        
+        destination.toFile().mkdir();
+        Util.copyFolder(source0.toFile(), destination.toFile());
+        Util.copyFolder(source1.toFile(), destination.toFile());
+    }
+    
+    /**
+     * <p>
+     * Initializes the var extern int kconfig_warnings.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
+     * <p>
+     * TODO AK: Check if this is actually correct: Is this even needed?
+     * </p>
+     *
+     * @param pathToSource
+     *            the path to source
+     * 
+     * @throws IOException If writing the replacements fails.
+     */
+    void initializeExternInt() throws IOException {
+        File lkcH = new File(getSourceTree(), "scripts/kconfig/lkc.h");
+        
+        replaceInFile(lkcH, lkcH, "extern int kconfig_warnings", "extern int kconfig_warnings = 0");
     }
 
 }
