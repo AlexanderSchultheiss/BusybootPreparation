@@ -2,12 +2,10 @@ package net.ssehub.kernel_haven.busyboot;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 
 import net.ssehub.kernel_haven.SetUpException;
@@ -50,15 +48,20 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
         LOGGER.logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
         List<File> matchingFiles = findFilesByName(getSourceTree(), "Makefile.inc");
         try {
-            for (File file : matchingFiles) {
+            for (File source : matchingFiles) {
+                File target = new File(source.getParentFile(), "Kbuild");
                 
-                Path path = Paths.get(file.getPath());
-                Charset charset = StandardCharsets.UTF_8;
-                String content = new String(Files.readAllBytes(path), charset);
+                String content;
+                try (FileInputStream in = new FileInputStream(source)) {
+                    content = Util.readStream(in);
+                }
+                source.delete();
+
                 content = replaceStuff(content);
-                Files.write(path, content.getBytes(charset));
                 
-                file.renameTo(new File(file.getAbsolutePath().replace("Makefile.inc", "Kbuild")));
+                try (FileOutputStream out = new FileOutputStream(target)) {
+                    out.write(content.getBytes(StandardCharsets.UTF_8));
+                }
             }
         } catch (IOException e) {
             throw new SetUpException("Couldn't replace in Makefiles", e);
@@ -129,21 +132,14 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
      * @throws IOException If copying the folders fails.
      */
     private void collectKconfigInfos() throws IOException {
-        String pathToSource = getSourceTree().getPath();
+        File source0 = new File(getSourceTree().getParentFile(), "util/kconfig");
+        File source1 = new File(getSourceTree().getParentFile(), "build/util/kconfig");
 
-        File scriptsDir = new File(getSourceTree(), "scripts");
-        scriptsDir.mkdir();
-
-        Path source0 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "util"
-                + File.separatorChar + "kconfig" + File.separatorChar);
-        Path source1 = Paths.get(pathToSource.substring(0, pathToSource.length() - 4) + File.separatorChar + "build"
-                + File.separatorChar + "util" + File.separatorChar + "kconfig");
-        Path destination = Paths.get(
-                pathToSource + File.separatorChar + "scripts" + File.separatorChar + "kconfig" + File.separatorChar);
+        File destination = new File(getSourceTree(), "scripts/kconfig");
+        destination.mkdirs();
         
-        destination.toFile().mkdir();
-        Util.copyFolder(source0.toFile(), destination.toFile());
-        Util.copyFolder(source1.toFile(), destination.toFile());
+        Util.copyFolder(source0, destination);
+        Util.copyFolder(source1, destination);
     }
     
     /**
