@@ -1,9 +1,7 @@
 package net.ssehub.kernel_haven.busyboot;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -38,8 +36,14 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
         
         Logger.get().logDebug(logPrefix + "Exeute make allyesconfig");
         executeMakeAllyesconfig(pathToSource);
-        Logger.get().logDebug(logPrefix + "Make Makefile with dummy targets");
-        makeDummyMakefile(pathToSource);
+        
+        LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
+        try {
+            makeDummyMakefile();
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't write Makefile", e);
+        }
+        
         Logger.get().logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
         List<File> matchingFiles = findFilesByName(new File(pathToSource), "Makefile.inc");
         for (File file : matchingFiles) {
@@ -139,24 +143,6 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
         content = content.replaceAll("verstage-", "obj-");
         content = content.replaceAll("subdirs-y", "obj-y");
         return content;
-    }
-
-    /**
-     * Make dummy makefile creates the dummy makefile with fake targets.
-     *
-     * @param pathToSource
-     *            the path to source tree of coreboot
-     */
-    private void makeDummyMakefile(String pathToSource) {
-        PrintWriter writer;
-        try {
-            writer = new PrintWriter(pathToSource + File.separatorChar + "Makefile");
-            writer.print("allyesconfig:\nprepare:");
-            writer.close();
-        } catch (FileNotFoundException exc) {
-            Logger.get().logWarning(exc.getMessage());
-            exc.printStackTrace();
-        }
     }
 
     /**

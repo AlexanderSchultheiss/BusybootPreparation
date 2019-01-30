@@ -11,7 +11,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -99,23 +98,6 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
             LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
                     "stderr:", stderr.toString());
             throw new IOException("make returned failure");
-        }
-    }
-    
-    /**
-     * <p>
-     * Creates a dummy Makefile with the targets 'allyesconfig' and 'prepare', so that extractors that call these
-     * targets again will not fail.
-     * </p>
-     * <p>
-     * Package visibility for test cases.
-     * </p>
-     * 
-     * @throws IOException If writing the file fails.
-     */
-    void makeDummyMakefile() throws IOException {
-        try (PrintWriter writer = new PrintWriter(new File(getSourceTree(), "Makefile"))) {
-            writer.print("allyesconfig:\n\nprepare:\n");
         }
     }
     

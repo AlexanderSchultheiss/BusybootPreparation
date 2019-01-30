@@ -120,6 +120,33 @@ public class AbstractBusybootPreparationTest {
     }
     
     /**
+     * Tests the {@link AbstractBusybootPreparation#makeDummyMakefile()} method.
+     * 
+     * @throws IOException unwanted.
+     */
+    @Test
+    public void testMakeDummyMakefile() throws IOException {
+        // set up
+        AbstractBusybootPreparation prep = new DummyImpl();
+        prep.setSourceTree(TMP_DIR);
+        
+        File makefile = new File(TMP_DIR, "Makefile");
+        
+        // precondition
+        assertThat(makefile.exists(), is(false));
+        
+        // execute
+        prep.makeDummyMakefile();
+        
+        // check result
+        assertThat(makefile.isFile(), is(true));
+        
+        try (FileInputStream in = new FileInputStream(makefile)) {
+            assertThat(Util.readStream(in), is("allyesconfig:\n\nprepare:\n"));
+        }
+    }
+    
+    /**
      * Tests the {@link AbstractBusybootPreparation#replaceInFile(File, File, String, String)} method.
      * 
      * @throws IOException unwanted.

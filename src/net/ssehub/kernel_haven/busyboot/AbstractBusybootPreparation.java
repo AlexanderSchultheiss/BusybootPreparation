@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -72,6 +73,18 @@ abstract class AbstractBusybootPreparation implements IPreparation {
         }
         cpDir.mkdir();
         Util.copyFolder(getSourceTree(), cpDir);
+    }
+    
+    /**
+     * Creates a dummy Makefile with the targets 'allyesconfig' and 'prepare', so that extractors that call these
+     * targets again will not fail.
+     * 
+     * @throws IOException If writing the file fails.
+     */
+    protected void makeDummyMakefile() throws IOException {
+        try (PrintWriter writer = new PrintWriter(new File(getSourceTree(), "Makefile"))) {
+            writer.print("allyesconfig:\n\nprepare:\n");
+        }
     }
     
     /**
