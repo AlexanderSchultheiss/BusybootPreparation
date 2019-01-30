@@ -14,6 +14,7 @@ import org.junit.runners.Suite.SuiteClasses;
     AbstractBusybootPreparationTest.class,
     FloridaPreparationTest.class,
     PrepareBusyboxTest.class,
+    PrepareCorebootTest.class,
     })
 public class AllTests {
 

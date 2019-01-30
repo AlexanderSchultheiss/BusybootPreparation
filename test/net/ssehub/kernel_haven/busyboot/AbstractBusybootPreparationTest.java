@@ -44,7 +44,6 @@ public class AbstractBusybootPreparationTest {
      */
     @Before
     public void createOrClearTmpDir() throws IOException {
-        TMP_DIR.mkdirs();
         Util.clearFolder(TMP_DIR);
     }
     

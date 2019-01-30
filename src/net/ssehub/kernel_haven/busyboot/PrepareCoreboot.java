@@ -10,7 +10,6 @@ import java.nio.file.Paths;
 import java.util.List;
 
 import net.ssehub.kernel_haven.SetUpException;
-import net.ssehub.kernel_haven.util.Logger;
 import net.ssehub.kernel_haven.util.Util;
 
 /**
@@ -24,7 +23,6 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
 
     @Override
     protected void runImpl() throws SetUpException {
-        String pathToSource = getSourceTree().getPath();
         String logPrefix = "Coreboot Preparation: ";
         
         LOGGER.logDebug(logPrefix + "Copy Source Tree");
@@ -34,8 +32,8 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
             throw new SetUpException("Couldn't copy source tree", e);
         }
         
-        Logger.get().logDebug(logPrefix + "Exeute make allyesconfig");
-        executeMakeAllyesconfig(pathToSource);
+        LOGGER.logDebug(logPrefix + "Exeute make allyesconfig");
+        executeMakeAllyesconfig();
         
         LOGGER.logDebug(logPrefix + "Making Makefile with dummy targets");
         try {
@@ -44,8 +42,8 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
             throw new SetUpException("Couldn't write Makefile", e);
         }
         
-        Logger.get().logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
-        List<File> matchingFiles = findFilesByName(new File(pathToSource), "Makefile.inc");
+        LOGGER.logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
+        List<File> matchingFiles = findFilesByName(getSourceTree(), "Makefile.inc");
         for (File file : matchingFiles) {
 
             Path path = Paths.get(file.getPath());
@@ -55,37 +53,47 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
                 content = replaceStuff(content);
                 Files.write(path, content.getBytes(charset));
             } catch (IOException exc) {
-                Logger.get().logWarning(exc.getMessage());
+                LOGGER.logWarning(exc.getMessage());
                 exc.printStackTrace();
             }
 
             file.renameTo(new File(file.getAbsolutePath().replace("Makefile.inc", "Kbuild")));
         }
-        Logger.get().logDebug(logPrefix + "Copying Kconfig information");
-        collectKconfigInfos(pathToSource);
-        Logger.get().logDebug(logPrefix + "initialize extern int");
-        initializeExternInt(pathToSource);
+        LOGGER.logDebug(logPrefix + "Copying Kconfig information");
+        collectKconfigInfos();
+        
+        LOGGER.logDebug(logPrefix + "initialize extern int");
+        try {
+            initializeExternInt();
+        } catch (IOException e) {
+            throw new SetUpException("Can't replace in variable initialization", e);
+        }
     }
 
     /**
+     * <p>
      * Initializes the var extern int kconfig_warnings.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
+     * <p>
+     * TODO AK: Check if this is actually correct:
+     * <ul>
+     *  <li>The correct path should be util/kconfig/lkc.h</li>
+     *  <li>Is this even needed?</li>
+     * </ul>
+     * </p>
      *
      * @param pathToSource
      *            the path to source
+     * 
+     * @throws IOException If writing the replacements fails.
      */
-    private void initializeExternInt(String pathToSource) {
-        try {
-            Charset charset = StandardCharsets.UTF_8;
-            Path path = Paths.get(pathToSource + File.separatorChar + "scripts" + File.separatorChar + "kconfig"
-                    + File.separatorChar + "lkc.h");
-            String content = new String(Files.readAllBytes(path), charset);
-            content = content.replaceAll("extern int kconfig_warnings", "extern int kconfig_warnings = 0");
-            Files.write(path, content.getBytes(charset));
-
-        } catch (IOException exc) {
-            Logger.get().logWarning(exc.getMessage());
-            exc.printStackTrace();
-        }
+    void initializeExternInt() throws IOException {
+        File lkcH = new File(getSourceTree(), "scripts/kconfig/lkc.h");
+        
+        replaceInFile(lkcH, lkcH, "extern int kconfig_warnings", "extern int kconfig_warnings = 0");
     }
 
     /**
@@ -95,13 +103,15 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
      * @param pathToSource
      *            the path to source
      */
-    private void collectKconfigInfos(String pathToSource) {
+    private void collectKconfigInfos() {
+        String pathToSource = getSourceTree().getPath();
+        
         try {
             Runtime rt = Runtime.getRuntime();
             rt.exec("mkdir " + pathToSource + File.separatorChar + "scripts");
 
         } catch (IOException exc) {
-            Logger.get().logWarning(exc.getMessage());
+            LOGGER.logWarning(exc.getMessage());
             exc.printStackTrace();
         }
 
@@ -120,7 +130,7 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
             Util.copyFolder(source0.toFile(), destination.toFile());
             Util.copyFolder(source1.toFile(), destination.toFile());
         } catch (IOException exc) {
-            Logger.get().logWarning(exc.getMessage());
+            LOGGER.logWarning(exc.getMessage());
             exc.printStackTrace();
         }
     }
@@ -151,14 +161,14 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
      * @param pathToSource
      *            the path to source tree of coreboot
      */
-    private void executeMakeAllyesconfig(String pathToSource) {
+    private void executeMakeAllyesconfig() {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig");
-        processBuilder.directory(new File(pathToSource.replace("/src", "")));
+        processBuilder.directory(new File(getSourceTree().getPath().replace("/src", "")));
         boolean ret = false;
         try {
             ret = Util.executeProcess(processBuilder, "make");
         } catch (IOException exc) {
-            Logger.get().logWarning(exc.getMessage());
+            LOGGER.logWarning(exc.getMessage());
             exc.printStackTrace();
         } finally {
             System.out.println("success: " + ret);
