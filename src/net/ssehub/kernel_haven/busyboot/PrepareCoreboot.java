@@ -9,15 +9,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.List;
 
-import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.SetUpException;
-import net.ssehub.kernel_haven.config.Configuration;
-import net.ssehub.kernel_haven.config.DefaultSettings;
 import net.ssehub.kernel_haven.util.Logger;
 import net.ssehub.kernel_haven.util.Util;
-import net.ssehub.kernel_haven.util.null_checks.NonNull;
 
 /**
  * The Class PrepareCoreboot implements the Interface IPreparetion and
@@ -26,38 +22,26 @@ import net.ssehub.kernel_haven.util.null_checks.NonNull;
  * 
  * @author Kevin
  */
-public class PrepareCoreboot implements IPreparation {
+public class PrepareCoreboot extends AbstractBusybootPreparation {
 
-    /**
-     * The run method as it is requested by IPreparation. Just getting the Path from
-     * the Config file and calling run(String pathSource).
-     * 
-     * @see net.ssehub.kernel_haven.IPreparation#run(net.ssehub.kernel_haven.config.Configuration)
-     */
     @Override
-    public void run(@NonNull Configuration config) throws SetUpException {
-        String pathToSource = config.getValue(DefaultSettings.SOURCE_TREE).getPath();
-        Logger.get().logInfo("Starting PrepareCoreboot for " + pathToSource);
-        run(pathToSource);
-    }
-
-    /**
-     * The real run method, managing the manipulation of Coreboot Sourcetree.
-     *
-     * @param pathSource
-     *            the path to the sourcetree
-     */
-    private void run(String pathSource) {
-        String pathToSource = pathSource;
+    protected void runImpl() throws SetUpException {
+        String pathToSource = getSourceTree().getPath();
         String logPrefix = "Coreboot Preparation: ";
-        Logger.get().logDebug(logPrefix + "Copy Source Tree");
-        copyOriginal(pathToSource);
+        
+        LOGGER.logDebug(logPrefix + "Copy Source Tree");
+        try {
+            copyOriginal();
+        } catch (IOException e) {
+            throw new SetUpException("Couldn't copy source tree", e);
+        }
+        
         Logger.get().logDebug(logPrefix + "Exeute make allyesconfig");
         executeMakeAllyesconfig(pathToSource);
         Logger.get().logDebug(logPrefix + "Make Makefile with dummy targets");
         makeDummyMakefile(pathToSource);
         Logger.get().logDebug(logPrefix + "Rename Makefile.inc to Kbuild and rename lists");
-        ArrayList<File> matchingFiles = findFilesByName(new File(pathToSource), "Makefile.inc");
+        List<File> matchingFiles = findFilesByName(new File(pathToSource), "Makefile.inc");
         for (File file : matchingFiles) {
 
             Path path = Paths.get(file.getPath());
@@ -77,24 +61,6 @@ public class PrepareCoreboot implements IPreparation {
         collectKconfigInfos(pathToSource);
         Logger.get().logDebug(logPrefix + "initialize extern int");
         initializeExternInt(pathToSource);
-    }
-
-    /**
-     * Copy original source tree.
-     *
-     * @param pathToSource
-     *            the path to source tree
-     */
-    private void copyOriginal(String pathToSource) {
-        File srcDir = new File(pathToSource);
-        File cpDir = new File(pathToSource + "UnchangedCopy");
-        try {
-            cpDir.mkdir();
-            Util.copyFolder(srcDir, cpDir);
-        } catch (IOException exc) {
-            Logger.get().logWarning(exc.getMessage());
-            exc.printStackTrace();
-        }
     }
 
     /**
@@ -210,43 +176,6 @@ public class PrepareCoreboot implements IPreparation {
             exc.printStackTrace();
         } finally {
             System.out.println("success: " + ret);
-        }
-    }
-
-    /**
-     * Find files by name recursively full depth.
-     *
-     * @param directory
-     *            the directory
-     * @param filename
-     *            the filename
-     * @return the array list of found files
-     */
-    private ArrayList<File> findFilesByName(File directory, String filename) {
-        ArrayList<File> matchingFiles = new ArrayList<File>();
-        findFilesHelper(directory, matchingFiles, filename);
-        return matchingFiles;
-    }
-
-    /**
-     * Find files helpermethod for recursion.
-     *
-     * @param directory
-     *            the directory
-     * @param files
-     *            the files
-     * @param filename
-     *            the filename
-     */
-    private void findFilesHelper(File directory, ArrayList<File> files, String filename) {
-        // get all the files from a directory
-        File[] fList = directory.listFiles();
-        for (File file : fList) {
-            if (file.isFile() && file.getName().endsWith(filename)) {
-                files.add(file);
-            } else if (file.isDirectory()) {
-                findFilesHelper(file, files, filename);
-            }
         }
     }
 
