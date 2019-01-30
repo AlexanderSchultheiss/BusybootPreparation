@@ -36,6 +36,15 @@ public class PrepareBusybox implements IPreparation {
     private static final @NonNull Logger LOGGER = Logger.get();
     
     private @NonNull File sourceTree = new File(""); // will be initialized in run()
+    
+    /**
+     * Changes the sourceTree attribute. <b>Only to be used for test cases.</b>
+     * 
+     * @param sourceTree The new source tree.
+     */
+    void setSourceTree(@NonNull File sourceTree) {
+        this.sourceTree = sourceTree;
+    }
 
 	@Override
 	public void run(@NonNull Configuration config) throws SetUpException {
@@ -59,7 +68,7 @@ public class PrepareBusybox implements IPreparation {
 		
 		LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
 		try {
-            executeMakePrepareAllyesconfigPrepare();
+            executeMakeAllyesconfigPrepare();
         } catch (IOException e) {
             throw new SetUpException("Couldn't execute 'make allyesconfig prepare'", e);
         }
@@ -100,9 +109,14 @@ public class PrepareBusybox implements IPreparation {
 	}
 	
 	/**
+	 * <p>
      * Copies the source tree so that we keep an unmodified version.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
      */
-    private void copyOriginal() throws IOException {
+    void copyOriginal() throws IOException {
         File cpDir = new File(sourceTree.getParentFile(), sourceTree.getName() + "UnchangedCopy");
         if (cpDir.exists()) {
             throw new IOException("Copy directory already exists");
@@ -114,7 +128,7 @@ public class PrepareBusybox implements IPreparation {
     /**
      * Executes 'make allyesconfig prepare' to prepare the busybox tree for analysis.
      */
-    private void executeMakePrepareAllyesconfigPrepare() throws IOException {
+    private void executeMakeAllyesconfigPrepare() throws IOException {
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
         processBuilder.directory(sourceTree);
         
@@ -130,7 +144,12 @@ public class PrepareBusybox implements IPreparation {
     }
     
     /**
+     * <p>
      * Reads the contents of source, does string-based replacements, and writes the result as target.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
      * 
      * @param source The source file to read the content from. This file will be delete after reading.
      * @param target The target file to write the replaced content to. This may be the same as source.
@@ -139,7 +158,7 @@ public class PrepareBusybox implements IPreparation {
      * 
      * @throws IOException If reading or writing the file(s) fails.
      */
-    private static void replaceInFile(@NonNull File source, @NonNull File target,
+    static void replaceInFile(@NonNull File source, @NonNull File target,
             @NonNull String from, @NonNull String to) throws IOException {
         
         String content;
@@ -156,10 +175,15 @@ public class PrepareBusybox implements IPreparation {
     }
     
     /**
+     * <p>
      * Creates a dummy Makefile with the targets 'allyesconfig' and 'prepare', so that extractors that call these
      * targets again will not fail.
+     * </p>
+     * <p>
+     * Package visibility for test cases.
+     * </p>
      */
-    private void makeDummyMakefile() throws IOException {
+    void makeDummyMakefile() throws IOException {
         try (PrintWriter writer = new PrintWriter(new File(sourceTree, "Makefile"))) {
             writer.print("allyesconfig:\n\nprepare:\n");
         }
@@ -465,14 +489,19 @@ public class PrepareBusybox implements IPreparation {
     }
 
 	/**
+	 * <p>
 	 * Finds all files in the given directory (recursively) that have exactly the given filename.
+	 * </p>
+	 * <p>
+	 * Package visibility for test cases.
+	 * </p>
 	 *
 	 * @param directory The directory to search in.
 	 * @param filename The filename to search for.
 	 * 
 	 * @return A list of all files that have the given filename.
 	 */
-	private static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
+	static @NonNull List<@NonNull File> findFilesByName(@NonNull File directory, @NonNull String filename) {
 	    List<@NonNull File> matchingFiles = new ArrayList<>();
 	    if (directory.isDirectory()) {
 	        findFilesHelper(directory, filename, matchingFiles);
