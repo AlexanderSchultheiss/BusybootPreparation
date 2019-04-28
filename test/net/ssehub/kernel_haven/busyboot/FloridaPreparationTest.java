@@ -455,11 +455,11 @@ public class FloridaPreparationTest {
     /**
      * Tests that the following invalid combination is handled gracefully.
      * 
-     * <code><pre>
+     * <pre>{@code
      * //&Line[feature]
      *    someCode();
      * //&end[feature]
-     * </pre></code>
+     * }</pre>
      * 
      * @throws IOException unwanted.
      * @throws SetUpException unwanted.
