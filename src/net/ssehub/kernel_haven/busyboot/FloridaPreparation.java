@@ -111,13 +111,9 @@ public class FloridaPreparation implements IPreparation {
     }
     
     /**
-     * <p>
      * Does the actual work of this preparation.
-     * </p>
-     * 
      * <p>
      * Package visibility for test cases.
-     * </p>
      *  
      * @param originalSourceTree The original source tree to copy from.
      * @param copiedSourceTree The target source tree. If this doesn't exist, its created; if it exists, it's cleared.

@@ -174,12 +174,9 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
     }
     
     /**
-     * <p>
      * Substitutes line continuation in Busybox for easier transformation.
-     * </p>
      * <p>
      * Package visibility for test cases.
-     * </p>
      *
      * @param inputFile The input file as a list of lines.
      * 

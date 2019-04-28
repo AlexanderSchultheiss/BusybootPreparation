@@ -158,15 +158,11 @@ public class PrepareCoreboot extends AbstractBusybootPreparation {
     }
     
     /**
-     * <p>
      * Initializes the var extern int kconfig_warnings.
-     * </p>
      * <p>
      * Package visibility for test cases.
-     * </p>
      * <p>
      * TODO AK: Check if this is actually correct: Is this even needed?
-     * </p>
      *
      * @param pathToSource
      *            the path to source
