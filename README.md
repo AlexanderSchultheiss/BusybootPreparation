@@ -8,7 +8,7 @@ Utilities for preparing Busybox and Coreboot source trees for KernelHaven.
 
 ## Usage
 
-Place [`BusybootPreparation.jar`](https://jenkins-2.sse.uni-hildesheim.de/view/KernelHaven/job/KH_BusybootPreparation/lastSuccessfulBuild/artifact/build/jar/BusybootPreparation.jar) in the plugins folder of KernelHaven.
+Place [`BusybootPreparation.jar`](https://jenkins-2.sse.uni-hildesheim.de/job/KH_BusybootPreparation/lastSuccessfulBuild/artifact/build/jar/BusybootPreparation.jar) in the plugins folder of KernelHaven.
 
 To use this preparation, set `preparation.class.0` to `net.ssehub.kernel_haven.busyboot.PrepareBusybox` or `net.ssehub.kernel_haven.busyboot.PrepareCoreboot` in the KernelHaven properties.
 
