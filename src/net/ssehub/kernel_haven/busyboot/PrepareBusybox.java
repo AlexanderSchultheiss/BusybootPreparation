@@ -56,7 +56,20 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
         
         LOGGER.logDebug(logPrefix + "Execute make allyesconfig prepare");
         try {
-            executeMakeAllyesconfigPrepare();
+            if (!executeMakeAllyesconfigPrepare(getSourceTree())) {
+                if (!executeMakeAllyesconfig(getSourceTree())) {
+                    File subdir = new File(getSourceTree(), "busybox");
+                    if (subdir.exists()) {
+                        if(!executeMakeAllyesconfigPrepare(new File(getSourceTree(), "busybox"))) {
+                            if(!executeMakeAllyesconfig(new File(getSourceTree(), "busybox"))) {
+                                throw new IOException("");
+                            }
+                        }
+                    } else {
+                        throw new IOException("");
+                    }
+                }
+            }
         } catch (IOException e) {
             throw new SetUpException("Couldn't execute 'make allyesconfig prepare'", e);
         }
@@ -101,19 +114,41 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * 
      * @throws IOException If execution of make fails.
      */
-    private void executeMakeAllyesconfigPrepare() throws IOException {
+    private boolean executeMakeAllyesconfigPrepare(File directory) throws IOException {
+        // TODO: "-i" flag
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
-        processBuilder.directory(getSourceTree());
+        processBuilder.directory(directory);
         
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
         
         boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
         if (!success) {
-            LOGGER.logError("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
+            LOGGER.logWarning("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
                     "stderr:", stderr.toString());
-            throw new IOException("make returned failure");
         }
+        return success;
+    }
+
+    /**
+     * Executes 'make allyesconfig' as an alternative to prepare the busybox tree for analysis.
+     *
+     * @throws IOException If execution of make fails.
+     */
+    private boolean executeMakeAllyesconfig(File directory) throws IOException {
+        // TODO: "-i" flag
+        ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig");
+        processBuilder.directory(directory);
+
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+
+        boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
+        if (!success) {
+            LOGGER.logWarning("Couldn't execute 'make allyesconfig", "stdout:", stdout.toString(),
+                    "stderr:", stderr.toString());
+        }
+        return success;
     }
     
     /**
@@ -426,11 +461,12 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
                     openingCount--;
                 }
             }
+            if (indexOpening >= 0 && indexClosing >= 0) {
+                variable = line.substring(indexOpening, indexClosing);
+                init = "\n" + line.substring(indexClosing + 1);
 
-            variable = line.substring(indexOpening, indexClosing);
-            init = "\n" + line.substring(indexClosing + 1);
-
-            line = notNull(line.substring(0, indexOpening));
+                line = notNull(line.substring(0, indexOpening));
+            }
         }
         if (line.contains("IF_NOT_")) {
             line = notNull(line.replace("IF_NOT_", "\n#if !defined CONFIG_"));
