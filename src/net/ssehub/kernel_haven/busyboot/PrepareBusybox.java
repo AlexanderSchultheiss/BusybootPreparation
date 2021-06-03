@@ -115,21 +115,26 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * @throws IOException If execution of make fails.
      */
     private boolean executeMakeAllyesconfigPrepare(File directory) throws IOException {
-        File prepareFailedFlag = new File(getSourceTree(), "PREPARE_FAILED");
-        if (!prepareFailedFlag.exists()) {
-            ProcessBuilder processBuilder = new ProcessBuilder("touch", "PREPARE_FAILED");
-            processBuilder.directory(getSourceTree());
-            Util.executeProcess(processBuilder, "touch");
-        }
         // TODO: "-i" flag
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
         processBuilder.directory(directory);
         
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
         ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-        
+        File prepareFailedFlag = new File(getSourceTree(), "PREPARE_FAILED");
         boolean success = Util.executeProcess(processBuilder, "make", stdout, stderr, 0);
-        if (!success) {
+        if (success) {
+            if (prepareFailedFlag.exists()) {
+                processBuilder = new ProcessBuilder("rm", "PREPARE_FAILED");
+                processBuilder.directory(getSourceTree());
+                Util.executeProcess(processBuilder, "rm");
+            }
+        } else {
+            if (!prepareFailedFlag.exists()) {
+                processBuilder = new ProcessBuilder("touch", "PREPARE_FAILED");
+                processBuilder.directory(getSourceTree());
+                Util.executeProcess(processBuilder, "touch");
+            }
             LOGGER.logWarning("Couldn't execute 'make allyesconfig prepare'", "stdout:", stdout.toString(),
                     "stderr:", stderr.toString());
         }
