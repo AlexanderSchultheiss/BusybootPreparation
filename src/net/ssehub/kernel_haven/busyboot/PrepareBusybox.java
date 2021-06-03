@@ -115,6 +115,12 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * @throws IOException If execution of make fails.
      */
     private boolean executeMakeAllyesconfigPrepare(File directory) throws IOException {
+        File prepareFailedFlag = new File(getSourceTree(), "PREPARE_FAILED");
+        if (!prepareFailedFlag.exists()) {
+            ProcessBuilder processBuilder = new ProcessBuilder("touch", "PREPARE_FAILED");
+            processBuilder.directory(getSourceTree());
+            Util.executeProcess(processBuilder, "touch");
+        }
         // TODO: "-i" flag
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
         processBuilder.directory(directory);
