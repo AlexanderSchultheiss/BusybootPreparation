@@ -12,6 +12,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * NOTE: The original version of this file was changed by Alexander Schultheiß,
+ * Humboldt-Universität zu Berlin, alexander.schultheiss@informatik.hu-berlin.de
  */
 package net.ssehub.kernel_haven.busyboot;
 
@@ -40,6 +43,7 @@ import net.ssehub.kernel_haven.util.null_checks.NonNull;
  * 
  * @author Kevin
  * @author Adam
+ * @author Alexander Schultheiß (alexander.schultheiss@informatik.hu-berlin.de)
  */
 public class PrepareBusybox extends AbstractBusybootPreparation {
     
@@ -115,7 +119,6 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * @throws IOException If execution of make fails.
      */
     private boolean executeMakeAllyesconfigPrepare(File directory) throws IOException {
-        // TODO: "-i" flag
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig", "prepare");
         processBuilder.directory(directory);
         
@@ -147,7 +150,6 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * @throws IOException If execution of make fails.
      */
     private boolean executeMakeAllyesconfig(File directory) throws IOException {
-        // TODO: "-i" flag
         ProcessBuilder processBuilder = new ProcessBuilder("make", "allyesconfig");
         processBuilder.directory(directory);
 
@@ -170,7 +172,6 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
      * @throws IOException If writing the replaced files fails.
      */
     private static void normalizeDir(@NonNull File dir) throws IOException {
-
         File[] files = dir.listFiles();
         if (files != null) {
             for (File file : files) {
