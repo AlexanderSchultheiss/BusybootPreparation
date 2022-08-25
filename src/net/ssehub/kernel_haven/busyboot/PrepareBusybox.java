@@ -102,12 +102,14 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
         } catch (IOException e) {
             throw new SetUpException("Couldn't write Makefile", e);
         }
-        
-        LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
-        try {
-            normalizeDir(getSourceTree());
-        } catch (IOException e) {
-            throw new SetUpException("Couldn't normalize file contents", e);
+
+        if (super.normalizeSources) {
+            LOGGER.logDebug(logPrefix + "Normalizing sourcecode");
+            try {
+                normalizeDir(getSourceTree());
+            } catch (IOException e) {
+                throw new SetUpException("Couldn't normalize file contents", e);
+            }
         }
         
         LOGGER.logDebug(logPrefix + "Done");
@@ -375,13 +377,13 @@ public class PrepareBusybox extends AbstractBusybootPreparation {
             temp = notNull(temp.replace("ENABLE_", "defined CONFIG_"));
         }
         if (temp.contains("&& ENABLE_")) {
-            temp = notNull(temp.replace("ENABLE_", "'defined CONFIG_"));
+            temp = notNull(temp.replace("ENABLE_", "defined CONFIG_"));
         }
         if (temp.contains("|| !ENABLE_")) {
             temp = notNull(temp.replace("!ENABLE_", "!defined CONFIG_"));
         }
         if (temp.contains("&& !ENABLE_")) {
-            temp = notNull(temp.replace("!ENABLE_", "'!defined CONFIG_"));
+            temp = notNull(temp.replace("!ENABLE_", "!defined CONFIG_"));
         }
 
         return temp;

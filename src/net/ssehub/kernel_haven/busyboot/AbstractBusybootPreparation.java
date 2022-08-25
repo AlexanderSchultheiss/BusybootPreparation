@@ -28,9 +28,11 @@ import net.ssehub.kernel_haven.IPreparation;
 import net.ssehub.kernel_haven.SetUpException;
 import net.ssehub.kernel_haven.config.Configuration;
 import net.ssehub.kernel_haven.config.DefaultSettings;
+import net.ssehub.kernel_haven.config.Setting;
 import net.ssehub.kernel_haven.util.Logger;
 import net.ssehub.kernel_haven.util.Util;
 import net.ssehub.kernel_haven.util.null_checks.NonNull;
+import net.ssehub.kernel_haven.util.null_checks.Nullable;
 
 /**
  * Superclass with helper methods for Busybox and Coreboot preparation.
@@ -38,14 +40,20 @@ import net.ssehub.kernel_haven.util.null_checks.NonNull;
  * @author Adam
  */
 abstract class AbstractBusybootPreparation implements IPreparation {
+    private static final @NonNull Setting<Boolean> PATH_TO_SOURCE_REPO
+            = new Setting<>("analysis.busybox.normalize", Setting.Type.BOOLEAN, true, null, "" +
+            "Whether the BusyBox sources should be normalized.");
 
     protected static final @NonNull Logger LOGGER = Logger.get();
-    
+    protected boolean normalizeSources = false;
+
     private @NonNull File sourceTree = new File(""); // will be initialized in run()
-    
+
     @Override
     public void run(@NonNull Configuration config) throws SetUpException {
         this.sourceTree = config.getValue(DefaultSettings.SOURCE_TREE);
+        config.registerSetting(PATH_TO_SOURCE_REPO);
+        this.normalizeSources = config.getValue(PATH_TO_SOURCE_REPO);
         
         LOGGER.logInfo("Starting " + getClass().getSimpleName() + " for " + sourceTree);
         runImpl();
